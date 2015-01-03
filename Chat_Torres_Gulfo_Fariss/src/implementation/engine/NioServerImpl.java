@@ -8,21 +8,22 @@ package implementation.engine;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.channels.ServerSocketChannel;
-import nio.engine.AcceptCallback;
 
 /**
  *
  * @author aquilest
  */
-public class NioServer extends nio.engine.NioServer{
-    private int port;
+public class NioServerImpl extends nio.engine.NioServer {
+
+    private int port = -1;
     private ServerSocketChannel serverSocket = null;
-    private AcceptCallback acceptCallBack;
-    
-    public NioServer(int port, AcceptCallback acceptCallback) throws IOException{
+    private AcceptCallback acceptCallBack = null;
+
+    public NioServerImpl(int port, AcceptCallback acceptCallback) throws IOException {
         this.serverSocket.open();
         this.serverSocket.configureBlocking(false);
-        this.serverSocket.socket().bind(new InetSocketAddress(port));       
+        this.serverSocket.socket().bind(new InetSocketAddress(port));
+        this.acceptCallBack = acceptCallback;
         this.port = port;
     }
 
@@ -35,21 +36,21 @@ public class NioServer extends nio.engine.NioServer{
     public void close() {
         throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
-    
-    public ServerSocketChannel getSSChannel(){
+
+    public ServerSocketChannel getSSChannel() {
         return this.serverSocket;
     }
-    
-    public void setAcceptCallback(AcceptCallback callback){
+
+    public void setAcceptCallback(AcceptCallback callback) {
         this.acceptCallBack = callback;
     }
-    
-    public void fireAccept(NioChannel channel){
+
+    public void fireAccept(NioChannelImpl channel) {
         this.acceptCallBack.accepted(this, channel);
     }
-    
-    public void fireClose(NioChannel channel){
+
+    public void fireClose(NioChannelImpl channel) {
         this.acceptCallBack.closed(channel);
     }
-    
+
 }

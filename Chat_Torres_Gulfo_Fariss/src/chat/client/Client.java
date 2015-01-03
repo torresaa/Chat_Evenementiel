@@ -6,11 +6,11 @@
 package chat.client;
 
 import java.nio.ByteBuffer;
-import nio.engine.AcceptCallback;
-import nio.engine.ConnectCallback;
-import nio.engine.DeliverCallback;
-import nio.engine.NioChannel;
-import nio.engine.NioServer;
+import implementation.engine.AcceptCallback;
+import implementation.engine.ConnectCallback;
+import implementation.engine.DeliverCallback;
+import implementation.engine.NioChannelImpl;
+import implementation.engine.NioServerImpl;
 
 /**
  *
@@ -19,24 +19,23 @@ import nio.engine.NioServer;
 public class Client implements AcceptCallback, ConnectCallback, DeliverCallback{
 
     @Override
-    public void accepted(NioServer server, NioChannel channel) {
-        //TODO: add callback(this), then call registerChannel in nioEngine
+    public void accepted(NioServerImpl server, NioChannelImpl channel) {
         throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 
     @Override
-    public void closed(NioChannel channel) {
+    public void closed(NioChannelImpl channel) {
         throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 
     @Override
-    public void connected(NioChannel channel) {
+    public void connected(NioChannelImpl channel) {
         throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 
     @Override
-    public void deliver(NioChannel channel, ByteBuffer bytes) {
+    public void deliver(NioChannelImpl channel, ByteBuffer bytes) {
         throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
-    
+
 }

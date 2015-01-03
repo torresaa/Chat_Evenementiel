@@ -1,4 +1,4 @@
-package nio.engine;
+package implementation.engine;
 
 public interface ConnectCallback {
   
@@ -7,11 +7,11 @@ public interface ConnectCallback {
    * 
    * @param channel
    */
-  public void closed(NioChannel channel);
+  public void closed(NioChannelImpl channel);
 
   /**
    * Callback to notify that a connection has succeeded.
    * @param channel
    */
-  public void connected(NioChannel channel);
+  public void connected(NioChannelImpl channel);
 }

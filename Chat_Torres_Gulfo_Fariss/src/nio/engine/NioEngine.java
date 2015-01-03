@@ -1,5 +1,7 @@
 package nio.engine;
 
+import implementation.engine.ConnectCallback;
+import implementation.engine.AcceptCallback;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;

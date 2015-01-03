@@ -1,4 +1,4 @@
-package nio.engine;
+package implementation.engine;
 
 import java.nio.ByteBuffer;
 
@@ -10,5 +10,5 @@ public interface DeliverCallback {
    * @param channel
    * @param bytes
    */
-  public void deliver(NioChannel channel, ByteBuffer bytes);
+  public void deliver(NioChannelImpl channel, ByteBuffer bytes);
 }

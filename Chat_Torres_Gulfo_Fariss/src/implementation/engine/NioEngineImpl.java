@@ -16,19 +16,17 @@ import java.nio.channels.SocketChannel;
 import java.nio.channels.spi.SelectorProvider;
 import java.util.Iterator;
 import java.util.LinkedList;
-import nio.engine.AcceptCallback;
-import nio.engine.ConnectCallback;
 
 /**
  *
  * @author aquilest
  */
-public class NioEngine extends nio.engine.NioEngine {
+public class NioEngineImpl extends nio.engine.NioEngine {
 
     private Selector selector;
     private java.util.List pendingChanges;
 
-    public NioEngine() throws Exception {
+    public NioEngineImpl() throws Exception {
         super();
         this.pendingChanges = new LinkedList();
         this.selector = SelectorProvider.provider().openSelector();
@@ -91,8 +89,8 @@ public class NioEngine extends nio.engine.NioEngine {
     }
 
     @Override
-    public NioServer listen(int port, AcceptCallback callback) throws IOException {
-        NioServer nioServer = new NioServer(port, callback);
+    public NioServerImpl listen(int port, AcceptCallback callback) throws IOException {
+        NioServerImpl nioServer = new NioServerImpl(port, callback);
         SelectionKey key = nioServer.getSSChannel().register(selector, SelectionKey.OP_ACCEPT); //TODO: ChangeRequest if needed
         key.attach(nioServer);
         return nioServer;
@@ -104,20 +102,21 @@ public class NioEngine extends nio.engine.NioEngine {
     }
 
     public void handleAccept(SelectionKey key) throws IOException {
-        // If the channel is interested in OP_ACCEPT, then he has a NioServer attached
-        NioServer nioServer = (NioServer) key.attachment();
+        // If the channel is interested in OP_ACCEPT, then he has a NioServerImpl attached
+        NioServerImpl nioServer = (NioServerImpl) key.attachment();
 
         ServerSocketChannel serverSocketChannel = (ServerSocketChannel) key.channel();
         SocketChannel socketChannel = serverSocketChannel.accept();
         socketChannel.configureBlocking(false);
 
-        NioChannel nioChannel = new NioChannel(socketChannel);
+        NioChannelImpl nioChannel = new NioChannelImpl(socketChannel);
 
         nioServer.fireAccept(nioChannel);
     }
     
     public void handleConnect (SelectionKey key){
-        //TODO
+        NioChannelImpl channel = (NioChannelImpl) key.attachment();
+        channel.fireConnect();
     }
     
     public void handleRead (SelectionKey key){
@@ -128,7 +127,7 @@ public class NioEngine extends nio.engine.NioEngine {
         //TODO
     }
 
-    public void registerNioChannel(NioChannel nioChannel, int op_int) throws ClosedChannelException {
+    public void registerNioChannel(NioChannelImpl nioChannel, int op_int) throws ClosedChannelException {
         if (op_int != SelectionKey.OP_ACCEPT) {
             SelectionKey key = nioChannel.getChannel().register(selector, op_int);
             key.attach(nioChannel);

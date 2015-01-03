@@ -8,19 +8,17 @@ package implementation.engine;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
-import nio.engine.ConnectCallback;
-import nio.engine.DeliverCallback;
 
 /**
  *
  * @author aquilest
  */
-public class NioChannel extends nio.engine.NioChannel{
+public class NioChannelImpl extends nio.engine.NioChannel{
     private SocketChannel socketChannel;
     private DeliverCallback deliverCallback = null;
     private ConnectCallback connectCallback = null;
     
-    public NioChannel(SocketChannel channel){
+    public NioChannelImpl(SocketChannel channel){
         this.socketChannel = channel;
     }
     
@@ -36,6 +34,14 @@ public class NioChannel extends nio.engine.NioChannel{
     
     public void setConnectCalllback(ConnectCallback callback) {
         this.connectCallback = callback;
+    }
+    
+    public void fireDeliver(ByteBuffer bytes){
+        this.deliverCallback.deliver(this, bytes);
+    }
+    
+    public void fireConnect(){
+        this.connectCallback.connected(this);
     }
 
     @Override
