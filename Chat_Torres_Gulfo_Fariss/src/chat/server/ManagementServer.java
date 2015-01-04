@@ -5,16 +5,23 @@
  */
 package chat.server;
 
+import chat.descriptors.RemoteHost;
+import chat.descriptors.RemoteUser;
+import chat.descriptors.Utils;
 import implementation.engine.NioEngineImpl;
 import implementation.engine.NioServerImpl;
-import java.util.List;
 import implementation.engine.AcceptCallback;
 import implementation.engine.ConnectCallback;
 import implementation.engine.DeliverCallback;
 import implementation.engine.NioChannelImpl;
+import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SelectionKey;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  *
@@ -27,7 +34,10 @@ public class ManagementServer implements AcceptCallback, ConnectCallback, Delive
     private int minPort;
     private int maxPort;
     private int maxUsers;
-    private List group; // Stock users
+    private LinkedList<RemoteUser> group; // Stock users
+
+    //Threads
+    private Thread nioLoop;
 
     public ManagementServer(int minPort, int maxPort, int maxUsers) throws ServerException {
         try {
@@ -38,37 +48,52 @@ public class ManagementServer implements AcceptCallback, ConnectCallback, Delive
         this.minPort = minPort;
         this.maxPort = maxPort;
         this.maxUsers = maxUsers;
+        this.group = new LinkedList<RemoteUser>();
     }
 
     public ManagementServer() throws ServerException {
         this(5000, 5959, 5);
     }
 
-    public void startServer() throws ServerException {
+    public void startListening() throws ServerException {
         for (int i = minPort; i <= maxPort; i++) {
             try {
                 server = this.nioEngine.listen(i, this);
+                break;
             } catch (Exception e) {
+                e.printStackTrace();
                 System.err.println("Starting server in port " + i + " not possible.");
             }
         }
-        if (server != null && server.getPort() > 0){
+        if (server != null && server.getPort() > 0) {
             System.out.println("Running server on port " + server.getPort());
-        }else{
-            throw new ServerException("Server can not start in ports " + minPort + " - "+
-                    maxPort + ".");
+        } else {
+            throw new ServerException("Server can not start in ports " + minPort + " - "
+                    + maxPort + ".");
         }
+    }
+
+    public void initServer() throws ServerException{
+        this.nioLoop = new Thread(this.nioEngine, "NioLoopServer");
+        this.nioLoop.start(); //TODO: Watch thread behavior
+        startListening();
     }
 
     @Override
     public void accepted(NioServerImpl server, NioChannelImpl channel) {
-        //TODO: Add Users
-        try {
-            this.nioEngine.registerNioChannel(channel, SelectionKey.OP_READ);
-        } catch (ClosedChannelException ex) {
-            //TODO;
-            channel.close();
-            System.err.println("New channel can not be registred. The connection has been closed.");
+        if (group.size() < this.maxUsers) { //If the group is not complete
+            channel.setDeliverCallback(this); // Set callback of incomming message
+            RemoteUser user = new RemoteUser(channel);
+            try {
+                this.group.add(user);
+                this.nioEngine.registerNioChannel(user, SelectionKey.OP_READ);
+            } catch (ClosedChannelException ex) {
+                //TODO;
+                channel.close();
+                System.err.println("New channel can not be registred. The connection has been closed.");
+            }
+        } else { // If the group is complete
+            server.close(); // Stop accepting new connections
         }
     }
 
@@ -84,7 +109,34 @@ public class ManagementServer implements AcceptCallback, ConnectCallback, Delive
 
     @Override
     public void deliver(NioChannelImpl channel, ByteBuffer bytes) {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        byte[] msg = new byte[bytes.limit()];
+        bytes.get(msg);
+        RemoteHost user = (RemoteHost) whoHasThisNioChannel(channel);
+        if (user.getPort() < 0) { // Listening port not setted 
+            user.setPort(Utils.byteArrayToInt(msg));
+            System.out.println("User " + user.toString() + ": Listening port setted.");
+        } else { // print incomming message
+            //TODO: Usefull to debug
+            try {
+                String str = new String(msg, "UTF-8");
+                System.out.println("User " + user.toString() + " sends: \n" + str);
+            } catch (UnsupportedEncodingException ex) {
+                Logger.getLogger(ManagementServer.class.getName()).log(Level.SEVERE, null, ex);
+            }
+        }
+
+    }
+
+    public RemoteUser whoHasThisNioChannel(NioChannelImpl nioChannel) {
+        Iterator it;
+        it = group.iterator();
+        while (it.hasNext()) {
+            RemoteUser user = (RemoteUser) it.next();
+            if (user.getNioChannel().equals(nioChannel)) {
+                return user;
+            }
+        }
+        return null;
     }
 
 }

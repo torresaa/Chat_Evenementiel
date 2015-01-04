@@ -20,7 +20,7 @@ public class NioServerImpl extends nio.engine.NioServer {
     private AcceptCallback acceptCallBack = null;
 
     public NioServerImpl(int port, AcceptCallback acceptCallback) throws IOException {
-        this.serverSocket.open();
+        this.serverSocket = ServerSocketChannel.open();
         this.serverSocket.configureBlocking(false);
         this.serverSocket.socket().bind(new InetSocketAddress(port));
         this.acceptCallBack = acceptCallback;
