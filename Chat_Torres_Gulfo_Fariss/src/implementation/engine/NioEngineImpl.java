@@ -7,6 +7,7 @@ package implementation.engine;
 
 import chat.descriptors.RemoteHost;
 import java.io.IOException;
+import static java.lang.Thread.sleep;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
@@ -19,6 +20,8 @@ import java.nio.channels.SocketChannel;
 import java.nio.channels.spi.SelectorProvider;
 import java.util.Iterator;
 import java.util.LinkedList;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  *
@@ -58,7 +61,7 @@ public class NioEngineImpl extends nio.engine.NioEngine implements Runnable {
                 }
 
                 // Wait for some channel to be ready (or timeout)
-                this.selector.select();
+                this.selector.select(10);
 
                 //Get iterator on set of keys with I/O to process
                 Iterator keyIter = this.selector.selectedKeys().iterator();
@@ -79,7 +82,6 @@ public class NioEngineImpl extends nio.engine.NioEngine implements Runnable {
                     else if (key.isReadable()) {
                         handleRead(key);
                     } // Client socket channel is available for writing and
-                    // key is valid (i.e., channel not closed)?
                     else if (key.isWritable()) {
                         handleWrite(key);
                     }
@@ -134,21 +136,28 @@ public class NioEngineImpl extends nio.engine.NioEngine implements Runnable {
 
     public void handleRead(SelectionKey key) {
         RemoteHost host = (RemoteHost) key.attachment();
-        host.getNioChannel().fireDeliver();
+        try {
+            host.getNioChannel().fireDeliver();
+        } catch (SocketChannelCloseException ex) {
+            key.cancel();  
+        }
     }
 
     public void handleWrite(SelectionKey key) {
         RemoteHost host = (RemoteHost) key.attachment();
-        byte[] msg = host.getMessageFromQueue();
         if (!host.queueIsEmpty()) { //There are message
             // Send first message of the Queue
+            byte[] msg = host.getMessageFromQueue();
             ByteBuffer buffer = ByteBuffer.allocate(msg.length);
             buffer.clear();
             buffer.put(msg);
-            
+
             buffer.flip(); // Buffer ready to read
-            
+
             host.getNioChannel().send(buffer);
+            if (host.queueIsEmpty()) {
+                changeOpInterest(host.getNioChannel(), SelectionKey.OP_READ);
+            }
         }
 
     }
@@ -161,12 +170,18 @@ public class NioEngineImpl extends nio.engine.NioEngine implements Runnable {
     }
 
     public void changeOpInterest(NioChannelImpl channel, int op_int) {
-        //TODO
+        SelectionKey key = channel.getChannel().keyFor(this.selector);
+        key.interestOps(op_int);
     }
 
     @Override
     public void run() {
-        mainloop();
+        try {
+            sleep(2);
+            mainloop();
+        } catch (InterruptedException ex) {
+            Logger.getLogger(NioEngineImpl.class.getName()).log(Level.SEVERE, null, ex);
+        }
     }
 
 }

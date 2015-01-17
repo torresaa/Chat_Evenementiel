@@ -42,4 +42,20 @@ public class Utils {
         }
         return b;
     }
+    
+    
+     /**
+     * Concatenate the 2 byte arrays
+     *
+     * @param byte1
+     * @param byte2
+     * @return
+     */
+    public static byte[] concat(byte[] byte1, byte[] byte2) {
+        byte[] byte3 = new byte[byte1.length + byte2.length];
+        System.arraycopy(byte1, 0, byte3, 0, byte1.length);
+        System.arraycopy(byte2, 0, byte3, byte1.length, byte2.length);
+        return byte3;
+
+    }
 }

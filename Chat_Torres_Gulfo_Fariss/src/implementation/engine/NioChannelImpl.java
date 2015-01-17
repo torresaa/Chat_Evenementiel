@@ -5,7 +5,6 @@
  */
 package implementation.engine;
 
-import chat.descriptors.Options;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
@@ -41,31 +40,61 @@ public class NioChannelImpl extends nio.engine.NioChannel {
         this.connectCallback = callback;
     }
 
-    public void fireDeliver() {
-        ByteBuffer buffer = ByteBuffer.allocate(Options.INCOMING_BUFFER_SIZE);
-        long bytesRead;
+    public void fireDeliver() throws SocketChannelCloseException {
 
-        try {
-            bytesRead = socketChannel.read(buffer);
-        } catch (IOException e) {
-            System.err.println("Problem to read the message.");
-            return;
+        ByteBuffer msgLengthBuffer = ByteBuffer.allocate(4);
+
+        int bytesRead = -1;
+        while (msgLengthBuffer.position() < msgLengthBuffer.limit()) {
+            try {
+                bytesRead = socketChannel.read(msgLengthBuffer);
+            } catch (IOException e) {
+                System.err.println("Problem to read the message.");
+                this.deliverCallback.closed(this);
+                throw new SocketChannelCloseException();
+            }
         }
 
-//        if (bytesRead == -1) {
-//            // Did the other end close?
-//            sc.close();
-//            System.err.println("The remote connection has been closed.");
-//            return;
-//        }
-        buffer.flip(); // Ready to read
+        if (bytesRead < 0) {
+            try {
+                socketChannel.close();
+            } catch (IOException ex) {
+                Logger.getLogger(NioChannelImpl.class.getName()).log(Level.SEVERE, null, ex);
+            }
+            System.err.println("The remote connection has been closed.");
+            this.deliverCallback.closed(this);
+            throw new SocketChannelCloseException();
+        }
 
-        /**
-         * Get bytes from buffer
-         */
-//        byte[] msg = new byte[buffer.limit()];
-//        buffer.get(msg);
-        this.deliverCallback.deliver(this, buffer);
+        msgLengthBuffer.flip();
+
+        int msgBufferLength = msgLengthBuffer.getInt();
+        ByteBuffer msgBuffer = ByteBuffer.allocate(msgBufferLength);
+
+        while (msgBuffer.position() < msgBuffer.limit()) {
+            try {
+                bytesRead = socketChannel.read(msgBuffer);
+            } catch (IOException e) {
+                System.err.println("Problem to read the message.");
+                this.deliverCallback.closed(this);
+                throw new SocketChannelCloseException();
+            }
+        }
+
+        if (bytesRead < 0) {
+            try {
+                socketChannel.close();
+            } catch (IOException ex) {
+                Logger.getLogger(NioChannelImpl.class.getName()).log(Level.SEVERE, null, ex);
+            }
+            System.err.println("The remote connection has been closed.");
+            this.deliverCallback.closed(this);
+            throw new SocketChannelCloseException();
+        }
+
+        msgBuffer.flip(); // Ready to read
+
+        this.deliverCallback.deliver(this, msgBuffer);
     }
 
     public void fireConnect() {
@@ -75,8 +104,7 @@ public class NioChannelImpl extends nio.engine.NioChannel {
     @Override
     public InetSocketAddress getRemoteAddress() {
         try {
-            InetSocketAddress remote = (InetSocketAddress)
-                    this.socketChannel.getRemoteAddress();
+            InetSocketAddress remote = (InetSocketAddress) this.socketChannel.getRemoteAddress();
             return remote;
         } catch (IOException ex) {
             ex.printStackTrace();
@@ -104,7 +132,12 @@ public class NioChannelImpl extends nio.engine.NioChannel {
 
     @Override
     public void close() {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        System.out.println("Close Channel");
+        try {
+            this.socketChannel.close();
+        } catch (IOException ex) {
+            Logger.getLogger(NioChannelImpl.class.getName()).log(Level.SEVERE, null, ex);
+        }
     }
 
 }

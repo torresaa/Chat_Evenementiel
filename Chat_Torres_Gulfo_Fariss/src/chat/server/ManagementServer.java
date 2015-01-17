@@ -7,14 +7,15 @@ package chat.server;
 
 import chat.descriptors.RemoteHost;
 import chat.descriptors.RemoteUser;
-import chat.descriptors.Utils;
+import chat.descriptors.messages.GroupMemberMsg;
+import chat.descriptors.messages.GroupeFinishMsg;
+import chat.descriptors.messages.Message;
 import implementation.engine.NioEngineImpl;
 import implementation.engine.NioServerImpl;
 import implementation.engine.AcceptCallback;
 import implementation.engine.ConnectCallback;
 import implementation.engine.DeliverCallback;
 import implementation.engine.NioChannelImpl;
-import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SelectionKey;
@@ -35,6 +36,7 @@ public class ManagementServer implements AcceptCallback, ConnectCallback, Delive
     private int maxPort;
     private int maxUsers;
     private LinkedList<RemoteUser> group; // Stock users
+    private static final String GROUP_NAME = "000GROUP000000000001";
 
     //Threads
     private Thread nioLoop;
@@ -52,7 +54,7 @@ public class ManagementServer implements AcceptCallback, ConnectCallback, Delive
     }
 
     public ManagementServer() throws ServerException {
-        this(5000, 5959, 5);
+        this(5000, 5959, 3);
     }
 
     public void startListening() throws ServerException {
@@ -73,7 +75,7 @@ public class ManagementServer implements AcceptCallback, ConnectCallback, Delive
         }
     }
 
-    public void initServer() throws ServerException{
+    public void initServer() throws ServerException {
         this.nioLoop = new Thread(this.nioEngine, "NioLoopServer");
         this.nioLoop.start(); //TODO: Watch thread behavior
         startListening();
@@ -83,7 +85,7 @@ public class ManagementServer implements AcceptCallback, ConnectCallback, Delive
     public void accepted(NioServerImpl server, NioChannelImpl channel) {
         if (group.size() < this.maxUsers) { //If the group is not complete
             channel.setDeliverCallback(this); // Set callback of incomming message
-            RemoteUser user = new RemoteUser(channel);
+            RemoteUser user = new RemoteUser(channel, group.size() + 1);
             try {
                 this.group.add(user);
                 this.nioEngine.registerNioChannel(user, SelectionKey.OP_READ);
@@ -99,7 +101,13 @@ public class ManagementServer implements AcceptCallback, ConnectCallback, Delive
 
     @Override
     public void closed(NioChannelImpl channel) {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        //TODO: User reconnection
+        //When tis method is called, the key for this channel has been 
+        //erased. The only things to do is to lock fro the user in the lis of members
+        //and then add it to the possible reconnection list
+        RemoteUser user = whoHasThisNioChannel(channel);
+        channel.close();
+        System.out.println("User: "+user.toString()+" is out.");
     }
 
     @Override
@@ -108,23 +116,28 @@ public class ManagementServer implements AcceptCallback, ConnectCallback, Delive
     }
 
     @Override
-    public void deliver(NioChannelImpl channel, ByteBuffer bytes) {
-        byte[] msg = new byte[bytes.limit()];
-        bytes.get(msg);
-        RemoteHost user = (RemoteHost) whoHasThisNioChannel(channel);
-        if (user.getPort() < 0) { // Listening port not setted 
-            user.setPort(Utils.byteArrayToInt(msg));
-            System.out.println("User " + user.toString() + ": Listening port setted.");
-        } else { // print incomming message
-            //TODO: Usefull to debug
-            try {
-                String str = new String(msg, "UTF-8");
-                System.out.println("User " + user.toString() + " sends: \n" + str);
-            } catch (UnsupportedEncodingException ex) {
-                Logger.getLogger(ManagementServer.class.getName()).log(Level.SEVERE, null, ex);
-            }
-        }
+    public void deliver(NioChannelImpl channel, ByteBuffer bytes) { //IncomingPayLoad
+        // bytes ready to read, no flip needed
+        int typeValeu = bytes.getInt();
 
+        switch (typeValeu) {
+            case Message.LISTENING_PORT_MSG:
+                //PAYLOAD: listenigPort (int)
+                int portValeu = bytes.getInt();
+                RemoteHost user = (RemoteHost) whoHasThisNioChannel(channel);
+                if (user.getPort() < 0) { // Listening port not setted 
+                    user.setPort(portValeu);
+                    System.out.println("User " + user.toString() + ": Listening port setted in " + user.getPort());
+                    groupFinish();
+                } else { // print incomming message
+                    //TODO: Usefull to debug
+                    System.out.println("User " + user.toString() + " sends: \n" + portValeu);
+                }
+                break;
+            case Message.ACK_SERVER:
+                System.out.println("--Server Ack--");
+                break;
+        }
     }
 
     public RemoteUser whoHasThisNioChannel(NioChannelImpl nioChannel) {
@@ -137,6 +150,54 @@ public class ManagementServer implements AcceptCallback, ConnectCallback, Delive
             }
         }
         return null;
+    }
+
+    /**
+     * send a msg to all member of the group
+     *
+     * @param msg
+     */
+    public void multicastMessage(Message msg) {
+        Iterator it = this.group.iterator();
+        while (it.hasNext()) {
+            RemoteUser user = (RemoteUser) it.next();
+            user.addMessageToQueue(msg);
+            this.nioEngine.changeOpInterest(user.getNioChannel(),
+                    SelectionKey.OP_READ | SelectionKey.OP_WRITE);
+        }
+    }
+
+    public void groupFinish() {
+        if (group.size() == this.maxUsers && membersReady()) {
+            try {
+                Thread.sleep(5);
+            } catch (InterruptedException ex) {
+                Logger.getLogger(ManagementServer.class.getName()).log(Level.SEVERE, null, ex);
+            }
+
+            multicastMessage(new GroupeFinishMsg(GROUP_NAME, group.size()));
+
+            Iterator it = this.group.iterator();
+
+            while (it.hasNext()) {
+                RemoteUser user = (RemoteUser) it.next();
+                multicastMessage(new GroupMemberMsg(user.getIndex(), user.getIp(), user.getPort()));
+            }
+        }
+
+    }
+
+    public boolean membersReady() {
+        Iterator it = this.group.iterator();
+
+        while (it.hasNext()) {
+            RemoteHost user = (RemoteHost) it.next();
+            if (user.getPort() <= 0) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
 }

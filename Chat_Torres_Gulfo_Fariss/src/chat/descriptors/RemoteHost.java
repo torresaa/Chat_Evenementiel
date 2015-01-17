@@ -68,7 +68,7 @@ public abstract class RemoteHost implements Comparable<RemoteHost>, Serializable
 
     @Override
     public String toString() {
-        return "RemoteHost{" + "ip=" + ip + '}';
+        return "RemoteHost{" + "ip=" + ip + " ListenigPort: "+ this.listenPort+'}';
     }
 
 }

@@ -19,14 +19,32 @@ public class ClientMain {
             /**
              * New NioEngine and initializations
              */
-            Client client = new Client(5959, 5970);
+            Client client = new Client(5966, 5970);
             /**
              * NioEngine.listen, init NioServer over server
              */
             client.initClient("localhost", 5000);
-            System.out.println("Exit");
+
+                        /**
+             * New NioEngine and initializations
+             */
+            Client client2 = new Client(5960, 5970);
+            /**
+             * NioEngine.listen, init NioServer over server
+             */
+            client2.initClient("localhost", 5000);
+            
+                        /**
+             * New NioEngine and initializations
+             */
+            Client client3 = new Client(5965, 5970);
+            /**
+             * NioEngine.listen, init NioServer over server
+             */
+            client3.initClient("localhost", 5000);
+            
             while (true) {
-                Thread.sleep(2000);
+                //Thread.sleep(2000);
             }
         } catch (ClientException ex) {
             System.err.println("Error: " + ex.getMessage());
