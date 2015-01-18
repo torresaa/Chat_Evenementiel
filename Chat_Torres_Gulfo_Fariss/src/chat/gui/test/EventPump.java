@@ -2,7 +2,7 @@ package chat.gui.test;
 
 import java.util.LinkedList;
 
-class EventPump extends Thread implements Runnable {
+public class EventPump extends Thread implements Runnable {
   
   ChatRoomMock m_room;
   LinkedList<Runnable> m_queue;

@@ -134,8 +134,16 @@ public class ManagementServer implements AcceptCallback, ConnectCallback, Delive
                     System.out.println("User " + user.toString() + " sends: \n" + portValeu);
                 }
                 break;
+                
             case Message.ACK_SERVER:
                 System.out.println("--Server Ack--");
+                break;
+                
+            case Message.DELIVER_MSG:
+                //TODO: Compare msg
+                long lc = bytes.getLong();
+                RemoteUser u = whoHasThisNioChannel(channel);
+                System.out.println("Client"+u.getIndex()+" deliver Message LC= "+ lc);
                 break;
         }
     }

@@ -81,8 +81,8 @@ public class ChatGUI {
       // Notice that it would not work at all with SWT from Eclipse,
       // The correct way is to switch to the GUI thread...
       try {
-        // Thread thread = Thread.currentThread();
-        // System.out.println("Thread "+thread+" received msg="+msg);
+        Thread thread = Thread.currentThread();
+        System.out.println("Thread "+thread+" received msg="+msg);
         EventQueue queue = Toolkit.getDefaultToolkit().getSystemEventQueue();
         queue.postEvent(new DeliverEvent(cont, msg));
       } catch (Exception ex) {

@@ -8,9 +8,16 @@ package chat.client;
 import chat.descriptors.RemoteServer;
 import chat.descriptors.RemoteUser;
 import chat.descriptors.messages.AckServer;
+import chat.descriptors.messages.DataAckMsg;
+import chat.descriptors.messages.DataMsg;
+import chat.descriptors.messages.DeliverMsg;
 import chat.descriptors.messages.ListeningPortMsg;
 import chat.descriptors.messages.Message;
 import chat.descriptors.messages.MyIndexMsg;
+import chat.gui.ChatException;
+import chat.gui.ChatGUI;
+import chat.gui.IChatRoom;
+import chat.gui.test.EventPump;
 import java.nio.ByteBuffer;
 import implementation.engine.AcceptCallback;
 import implementation.engine.ConnectCallback;
@@ -25,6 +32,7 @@ import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SelectionKey;
 import java.util.Iterator;
 import java.util.LinkedList;
+import java.util.TreeSet;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -32,7 +40,7 @@ import java.util.logging.Logger;
  *
  * @author aquilest
  */
-public class Client implements AcceptCallback, ConnectCallback, DeliverCallback {
+public class Client implements AcceptCallback, ConnectCallback, DeliverCallback, IChatRoom {
 
     private NioEngineImpl nioEngine;
     private NioServerImpl localServer = null;
@@ -46,8 +54,17 @@ public class Client implements AcceptCallback, ConnectCallback, DeliverCallback 
     private int numberOfGroupMembers = -1;
     private int myIndex = -1;
 
+    private long lc;
+    private TreeSet<ReceivedMsg> msgList;
+
     //Thread
     private Thread nioLoop;
+
+    //Interface
+    IChatListener m_listener;
+    String m_name;
+    boolean m_inRoom = false;
+    EventPump m_pump;
 
     public Client(int minPort, int maxPort) throws ClientException {
 
@@ -60,6 +77,7 @@ public class Client implements AcceptCallback, ConnectCallback, DeliverCallback 
 
         this.minPort = minPort;
         this.maxPort = maxPort;
+        this.msgList = new TreeSet<ReceivedMsg>();
     }
 
     public void contactServer(String host, int port) throws ClientException {
@@ -184,9 +202,13 @@ public class Client implements AcceptCallback, ConnectCallback, DeliverCallback 
                 this.group = new LinkedList<RemoteUser>();
                 this.numberOfGroupMembers = bytes.getInt();
                 this.myIndex = bytes.getInt();
+                //Init LC with index
+                this.lc = this.myIndex;
                 System.out.println("New group created, name: " + this.groupName
                         + " number of members: " + this.numberOfGroupMembers + ""
                         + " and my index: " + this.myIndex);
+                //Start User interface
+                new ChatGUI("Client" + this.myIndex, this);
                 break;
             case Message.GROUP_MEMBER_MSG:
                 int indexValeu = bytes.getInt();
@@ -202,9 +224,11 @@ public class Client implements AcceptCallback, ConnectCallback, DeliverCallback 
                 bytes.get(ipBytes);
                 int listenigPort = bytes.getInt();
                 RemoteUser user = new RemoteUser(ip, listenigPort, indexValeu);
-                user.setConnectedCallback(this);
-                this.group.add(user);
-                System.out.println("--new member: " + user.toString());
+                //if (indexValeu != myIndex) {//if it is not me
+                    user.setConnectedCallback(this);
+                    this.group.add(user);
+                    System.out.println("--new member: " + user.toString());
+                //}
 
                 if (group.size() == this.numberOfGroupMembers) {
                     this.remoteServer.addMessageToQueue(new AckServer());
@@ -221,8 +245,136 @@ public class Client implements AcceptCallback, ConnectCallback, DeliverCallback 
                 nioEngine.changeKeyAttach(channel, getUserByIndex(remoteIndexValeu));
                 System.out.println("NioChannel for user: " + u.toString() + " set.");
                 break;
+            case Message.DATA_MSG:
+                long lc = bytes.getLong();
+                byte[] data = new byte[bytes.limit() - bytes.position()];
+                bytes.get(data);
+                incomingDataMsg(lc, data);
+
+                break;
+
+            case Message.DATA_ACK_MSG:
+                long lc2 = bytes.getLong();
+                incomingAck(whoHasThisNioChannel(channel).getIndex(), lc2);
+
+                break;
         }
 
+    }
+
+    /**
+     * Call by interface in order to send a message format the input string to
+     * MsgData
+     *
+     * @param msg
+     */
+    public void sendDataMessage(String msg) {
+        DataMsg formatMsg = new DataMsg(this.lc, msg);
+        multicastMessage(formatMsg);
+        this.lc++;//Add this event to LC
+        //--Add it to my list of received
+        incomingDataMsg(formatMsg.getLcMessage(), formatMsg.getData().getBytes());
+        //--Ack for this msg
+        incomingAck(myIndex, formatMsg.getLcMessage());
+    }
+
+    /**
+     * Add the message to list of recived message in order to wait all acks to
+     * be deliver.
+     *
+     * @param lc
+     * @param data
+     */
+    public void incomingDataMsg(long lc, byte[] data) {
+        ReceivedMsg msg = new ReceivedMsg(lc, this.numberOfGroupMembers, data);
+        this.msgList.add(msg);
+        this.lc = Math.max(this.lc, lc) + 1;
+        sendAckMessage(lc);
+        incomingAck(myIndex, lc);
+    }
+
+    public void sendAckMessage(long lc) {
+        multicastMessage(new DataAckMsg(lc));
+        this.lc++;
+    }
+
+    /**
+     * Refresh the list of ack received for the message LC then call
+     * verifyDeliver
+     *
+     * @param userIndex
+     * @param lc
+     */
+    public void incomingAck(int userIndex, long lc) {
+        ReceivedMsg msg = getReceivedMsgByLc(lc);
+        if (msg != null) {
+            msg.setIncomingAck(userIndex);
+            verifyDeliver();
+        } else {
+            System.out.println("Msg " + lc + "is not in the list, Ack rejected.");
+        }
+    }
+
+    /**
+     * verify if he first msg in the queue can be deliver
+     *
+     */
+    public void verifyDeliver() {
+        //TODO: suport for disable users
+        if (msgList.first().allAcksComplete()) {
+            ReceivedMsg msg = msgList.pollFirst();
+            this.remoteServer.addMessageToQueue(new DeliverMsg(msg.getLcMessage()));
+            nioEngine.changeOpInterest(this.remoteServer.getNioChannel(), 
+                    SelectionKey.OP_READ | SelectionKey.OP_WRITE);
+            displayMessage(msg.getData());
+        }
+    }
+
+    /**
+     * print data in the user's interface
+     *
+     * @param data
+     */
+    public void displayMessage(byte[] data) {
+        String msg;
+        try {
+            msg = new String(data, "UTF-8");
+            m_listener.deliver(msg);
+        } catch (UnsupportedEncodingException ex) {
+            Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
+        }
+    }
+
+    /**
+     * return the msg in the msgList that has this LC
+     *
+     * @param lc
+     * @return received msg with lc
+     */
+    public ReceivedMsg getReceivedMsgByLc(long lc) {
+        Iterator<ReceivedMsg> it = msgList.iterator();
+        while (it.hasNext()) {
+            ReceivedMsg msg = it.next();
+            if (msg.getLcMessage() == lc) {
+                return msg;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Send message to all members in the group list
+     *
+     * @param msg
+     */
+    public void multicastMessage(Message msg) {
+        Iterator it = this.group.iterator();
+        while (it.hasNext()) {
+            RemoteUser user = (RemoteUser) it.next();
+            user.addMessageToQueue(msg);
+            this.nioEngine.changeOpInterest(user.getNioChannel(),
+                    SelectionKey.OP_READ | SelectionKey.OP_WRITE);
+        }
     }
 
     public RemoteUser getUserByIndex(int index) {
@@ -242,9 +394,17 @@ public class Client implements AcceptCallback, ConnectCallback, DeliverCallback 
      */
     public void initChat() {
         System.out.println("Init Chat");
+        try {
+            Thread.sleep(20); //Wait interface 
+        } catch (InterruptedException ex) {
+            Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
+        }
+        //m_listener.joined("Client" + this.myIndex);
         Iterator it = this.group.iterator();
         while (it.hasNext()) {
             RemoteUser user = (RemoteUser) it.next();
+            m_listener.joined("Client" + user.getIndex());
+            if(user.getIndex() == myIndex)it.remove();
             if (user.getIndex() > this.myIndex) {
                 contactUser(user);
             }
@@ -259,6 +419,36 @@ public class Client implements AcceptCallback, ConnectCallback, DeliverCallback 
             System.err.println("Remote host is unreachable.");
             //TODO: 
         }
+    }
+
+    // IChatRommInterface
+    @Override
+    public void enter(String clientName, IChatListener l) throws ChatException {
+        if (m_inRoom) {
+            throw new ChatException("Already in the chat room");
+        }
+        m_inRoom = true;
+        m_name = clientName;
+        m_listener = l;
+        //m_pump.enqueue(new Runnable() {
+        //    public void run() {
+        //m_listener.joined(m_name);
+        //    }
+        //;
+    }
+
+    @Override
+    public void leave() throws ChatException {
+        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+    }
+
+    @Override
+    public void send(String msg) throws ChatException {
+        if (!this.m_inRoom) {
+            throw new ChatException("You are not in chat room");
+        }
+        //m_listener.deliver(msg);
+        sendDataMessage(msg);
     }
 
 }

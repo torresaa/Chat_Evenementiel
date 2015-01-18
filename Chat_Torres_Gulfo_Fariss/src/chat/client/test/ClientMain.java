@@ -24,6 +24,8 @@ public class ClientMain {
              * NioEngine.listen, init NioServer over server
              */
             client.initClient("localhost", 5000);
+            
+            //new ChatGUI("Cliente1", client);
 
                         /**
              * New NioEngine and initializations
@@ -33,6 +35,7 @@ public class ClientMain {
              * NioEngine.listen, init NioServer over server
              */
             client2.initClient("localhost", 5000);
+            //new ChatGUI("Cliente2", client2);
             
                         /**
              * New NioEngine and initializations
@@ -42,6 +45,7 @@ public class ClientMain {
              * NioEngine.listen, init NioServer over server
              */
             client3.initClient("localhost", 5000);
+            //new ChatGUI("Cliente3", client3);
             
             while (true) {
                 //Thread.sleep(2000);

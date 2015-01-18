@@ -21,8 +21,8 @@ public abstract class Message {
     public static final int DELIVER_MSG = 15;
     
     //Msg client-client
-    public static final int TEXT_MSG = 21;
-    public static final int ACK_MSG = 22;
+    public static final int DATA_MSG = 21;
+    public static final int DATA_ACK_MSG = 22;
     public static final int MY_INDEX_MSG = 23;
     
     private byte[] msg;

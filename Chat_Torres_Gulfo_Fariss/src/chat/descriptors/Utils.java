@@ -5,6 +5,8 @@
  */
 package chat.descriptors;
 
+import java.nio.ByteBuffer;
+
 /**
  *
  * @author aquilest
@@ -42,9 +44,8 @@ public class Utils {
         }
         return b;
     }
-    
-    
-     /**
+
+    /**
      * Concatenate the 2 byte arrays
      *
      * @param byte1
@@ -57,5 +58,11 @@ public class Utils {
         System.arraycopy(byte2, 0, byte3, byte1.length, byte2.length);
         return byte3;
 
+    }
+
+    public static byte[] longToBytes(long x) {
+        ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES);
+        buffer.putLong(x);
+        return buffer.array();
     }
 }
