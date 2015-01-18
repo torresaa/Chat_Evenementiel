@@ -6,6 +6,7 @@
 package implementation.engine;
 
 import chat.descriptors.RemoteHost;
+import chat.descriptors.RemoteUser;
 import java.io.IOException;
 import static java.lang.Thread.sleep;
 import java.net.InetAddress;
@@ -103,7 +104,8 @@ public class NioEngineImpl extends nio.engine.NioEngine implements Runnable {
     }
 
     @Override
-    public void connect(InetAddress hostAddress, int port, ConnectCallback callback) throws UnknownHostException, SecurityException, IOException {
+    public void connect(InetAddress hostAddress, int port, ConnectCallback callback) 
+            throws UnknownHostException, SecurityException, IOException {
         SocketChannel socket = SocketChannel.open();
         socket.configureBlocking(false);
         socket.connect(new InetSocketAddress(hostAddress, port));
@@ -172,6 +174,11 @@ public class NioEngineImpl extends nio.engine.NioEngine implements Runnable {
     public void changeOpInterest(NioChannelImpl channel, int op_int) {
         SelectionKey key = channel.getChannel().keyFor(this.selector);
         key.interestOps(op_int);
+    }
+    
+    public void changeKeyAttach(NioChannelImpl channelWithKey, RemoteUser attach){
+        SelectionKey key = channelWithKey.getChannel().keyFor(this.selector);
+        key.attach(attach);
     }
 
     @Override

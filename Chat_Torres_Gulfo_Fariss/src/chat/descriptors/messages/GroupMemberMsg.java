@@ -23,6 +23,7 @@ public class GroupMemberMsg extends Message{
 
     public GroupMemberMsg(int index, InetAddress ip, int listeningPort){
         setType(Message.GROUP_MEMBER_MSG);
+        this.index = index;
         this.ip = ip;
         this.listeningPort = listeningPort;
         formatMsg();

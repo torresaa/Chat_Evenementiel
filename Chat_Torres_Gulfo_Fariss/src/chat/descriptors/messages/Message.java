@@ -23,6 +23,7 @@ public abstract class Message {
     //Msg client-client
     public static final int TEXT_MSG = 21;
     public static final int ACK_MSG = 22;
+    public static final int MY_INDEX_MSG = 23;
     
     private byte[] msg;
     

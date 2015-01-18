@@ -107,7 +107,7 @@ public class ManagementServer implements AcceptCallback, ConnectCallback, Delive
         //and then add it to the possible reconnection list
         RemoteUser user = whoHasThisNioChannel(channel);
         channel.close();
-        System.out.println("User: "+user.toString()+" is out.");
+        System.out.println("User: " + user.toString() + " is out.");
     }
 
     @Override
@@ -175,7 +175,7 @@ public class ManagementServer implements AcceptCallback, ConnectCallback, Delive
                 Logger.getLogger(ManagementServer.class.getName()).log(Level.SEVERE, null, ex);
             }
 
-            multicastMessage(new GroupeFinishMsg(GROUP_NAME, group.size()));
+            sendGroupFinishMsg();
 
             Iterator it = this.group.iterator();
 
@@ -185,6 +185,16 @@ public class ManagementServer implements AcceptCallback, ConnectCallback, Delive
             }
         }
 
+    }
+
+    public void sendGroupFinishMsg() {
+        Iterator it = this.group.iterator();
+        while (it.hasNext()) {
+            RemoteUser user = (RemoteUser) it.next();
+            user.addMessageToQueue(new GroupeFinishMsg(GROUP_NAME, group.size(), user.getIndex()));
+            this.nioEngine.changeOpInterest(user.getNioChannel(),
+                    SelectionKey.OP_READ | SelectionKey.OP_WRITE);
+        }
     }
 
     public boolean membersReady() {

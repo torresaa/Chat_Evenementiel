@@ -10,6 +10,7 @@ import chat.descriptors.RemoteUser;
 import chat.descriptors.messages.AckServer;
 import chat.descriptors.messages.ListeningPortMsg;
 import chat.descriptors.messages.Message;
+import chat.descriptors.messages.MyIndexMsg;
 import java.nio.ByteBuffer;
 import implementation.engine.AcceptCallback;
 import implementation.engine.ConnectCallback;
@@ -20,7 +21,9 @@ import implementation.engine.NioServerImpl;
 import java.io.UnsupportedEncodingException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SelectionKey;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -41,6 +44,7 @@ public class Client implements AcceptCallback, ConnectCallback, DeliverCallback 
 
     private String groupName = null;
     private int numberOfGroupMembers = -1;
+    private int myIndex = -1;
 
     //Thread
     private Thread nioLoop;
@@ -96,7 +100,15 @@ public class Client implements AcceptCallback, ConnectCallback, DeliverCallback 
 
     @Override
     public void accepted(NioServerImpl server, NioChannelImpl channel) {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        channel.setDeliverCallback(this); // Set callback of incomming message
+        RemoteUser user = new RemoteUser(channel, -1);
+        try {
+            this.nioEngine.registerNioChannel(user, SelectionKey.OP_READ);
+        } catch (ClosedChannelException ex) {
+            //TODO;
+            channel.close();
+            System.err.println("New channel can not be registred. The connection has been closed.");
+        }
     }
 
     @Override
@@ -124,8 +136,33 @@ public class Client implements AcceptCallback, ConnectCallback, DeliverCallback 
                 //TODO: Exception because channel cant be registred;
             }
         } else {
-            //TODO: This is connection with another that finish
+            try {
+                // Server not defined, that means this is the first connected
+                channel.getChannel().finishConnect();
+                channel.setDeliverCallback(this);
+                RemoteUser user = whoHasThisNioChannel(channel);
+                user.addMessageToQueue(new MyIndexMsg(this.myIndex));
+                this.nioEngine.registerNioChannel(user, SelectionKey.OP_WRITE);
+                System.out.println("User registred");
+            } catch (Exception ex) {
+                ex.printStackTrace();
+                //TODO: Exception because channel cant be registred;
+            }
         }
+    }
+
+    public RemoteUser whoHasThisNioChannel(NioChannelImpl nioChannel) {
+        Iterator it;
+        it = group.iterator();
+        while (it.hasNext()) {
+            RemoteUser user = (RemoteUser) it.next();
+            if (user.getNioChannel() != null) {
+                if (user.getNioChannel().equals(nioChannel)) {
+                    return user;
+                }
+            }
+        }
+        return null;
     }
 
     @Override
@@ -146,8 +183,10 @@ public class Client implements AcceptCallback, ConnectCallback, DeliverCallback 
                 }
                 this.group = new LinkedList<RemoteUser>();
                 this.numberOfGroupMembers = bytes.getInt();
+                this.myIndex = bytes.getInt();
                 System.out.println("New group created, name: " + this.groupName
-                        + " number of members: " + this.numberOfGroupMembers);
+                        + " number of members: " + this.numberOfGroupMembers + ""
+                        + " and my index: " + this.myIndex);
                 break;
             case Message.GROUP_MEMBER_MSG:
                 int indexValeu = bytes.getInt();
@@ -163,18 +202,38 @@ public class Client implements AcceptCallback, ConnectCallback, DeliverCallback 
                 bytes.get(ipBytes);
                 int listenigPort = bytes.getInt();
                 RemoteUser user = new RemoteUser(ip, listenigPort, indexValeu);
+                user.setConnectedCallback(this);
                 this.group.add(user);
                 System.out.println("--new member: " + user.toString());
 
                 if (group.size() == this.numberOfGroupMembers) {
                     this.remoteServer.addMessageToQueue(new AckServer());
-                    nioEngine.changeOpInterest(channel, 
+                    nioEngine.changeOpInterest(channel,
                             SelectionKey.OP_READ | SelectionKey.OP_WRITE);
                     initChat();
                 }
                 break;
+            case Message.MY_INDEX_MSG:
+                //PAYLOAD = remoteIndex (int)
+                int remoteIndexValeu = bytes.getInt();
+                RemoteUser u = getUserByIndex(remoteIndexValeu);
+                u.setNioChannel(channel);
+                nioEngine.changeKeyAttach(channel, getUserByIndex(remoteIndexValeu));
+                System.out.println("NioChannel for user: " + u.toString() + " set.");
+                break;
         }
 
+    }
+
+    public RemoteUser getUserByIndex(int index) {
+        Iterator it = group.iterator();
+        while (it.hasNext()) {
+            RemoteUser user = (RemoteUser) it.next();
+            if (user.getIndex() == index) {
+                return user;
+            }
+        }
+        return null;
     }
 
     /**
@@ -183,6 +242,23 @@ public class Client implements AcceptCallback, ConnectCallback, DeliverCallback 
      */
     public void initChat() {
         System.out.println("Init Chat");
+        Iterator it = this.group.iterator();
+        while (it.hasNext()) {
+            RemoteUser user = (RemoteUser) it.next();
+            if (user.getIndex() > this.myIndex) {
+                contactUser(user);
+            }
+        }
+    }
+
+    public void contactUser(RemoteUser user) {
+        try {
+            this.nioEngine.connect(user.getIp(), user.getPort(), user);
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            System.err.println("Remote host is unreachable.");
+            //TODO: 
+        }
     }
 
 }
