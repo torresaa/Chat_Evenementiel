@@ -17,7 +17,8 @@ public class ChatRoomMock implements IChatRoom {
   String m_name;
   boolean m_inRoom;
   EventPump m_pump;
-
+  boolean rushBoolean = false;
+  
   public static void main(String args[]) {
     ChatRoomMock room;
     String name;
@@ -51,7 +52,7 @@ public class ChatRoomMock implements IChatRoom {
       public void run() {
         double base = System.currentTimeMillis();
         Random rand = new Random();
-        for (;;) {
+        while (rushBoolean) {
           try {
             int sleep = rand.nextInt(400);
             Thread.sleep(800 + sleep);
@@ -123,4 +124,14 @@ public class ChatRoomMock implements IChatRoom {
     });
   }
 
+  @Override
+  public void rush() throws ChatException {
+      this.rushBoolean = !this.rushBoolean;
+      if (rushBoolean){  
+        produceFakeMessages();
+      }
+      System.out.println("FUNCIONA?");
+      System.out.println("SI");
+  }
+  
 }

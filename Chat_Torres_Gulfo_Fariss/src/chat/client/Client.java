@@ -36,6 +36,7 @@ import java.util.BitSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.NoSuchElementException;
+import java.util.Random;
 import java.util.TreeSet;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -72,6 +73,7 @@ public class Client implements AcceptCallback, ConnectCallback, DeliverCallback,
     String m_name;
     boolean m_inRoom = false;
     EventPump m_pump;
+    boolean rushBoolean = false;
 
     public Client(int minPort, int maxPort) throws ClientException {
 
@@ -146,7 +148,7 @@ public class Client implements AcceptCallback, ConnectCallback, DeliverCallback,
         RemoteUser user = whoHasThisNioChannel(channel);
         this.activeUsers.clear(user.getIndex());
         this.group.remove(user);//Erase user from the list
-        m_listener.left("Client"+user.getIndex());
+        m_listener.left("Client" + user.getIndex());
         channel.close();
     }
 
@@ -276,7 +278,7 @@ public class Client implements AcceptCallback, ConnectCallback, DeliverCallback,
             case Message.USER_LEAVE_MSG:
                 //TODO:
                 int index = bytes.getInt();
-                System.err.println("Client" + index +" leave chat room.");
+                System.err.println("Client" + index + " leave chat room.");
                 break;
         }
 
@@ -349,12 +351,12 @@ public class Client implements AcceptCallback, ConnectCallback, DeliverCallback,
                         SelectionKey.OP_READ | SelectionKey.OP_WRITE);
                 displayMessage(msg.getData());
                 verifyDeliver();//Recursive
-            }else{
-                if ((System.currentTimeMillis() - msgList.first().getTimeReception()) 
-                        > ReceivedMsg.WAIT_TIME_MILIS){
+            } else {
+                if ((System.currentTimeMillis() - msgList.first().getTimeReception())
+                        > ReceivedMsg.WAIT_TIME_MILIS) {
                     //if the max wait time was complete
                     ReceivedMsg msg = msgList.pollFirst();
-                    String err_msg  = "ERROR: Message "+msg.getLcMessage()+" deliver time out.";
+                    String err_msg = "ERROR: Message " + msg.getLcMessage() + " deliver time out.";
                     this.displayMessage(err_msg.getBytes());
                 }
             }
@@ -519,6 +521,42 @@ public class Client implements AcceptCallback, ConnectCallback, DeliverCallback,
         }
         //m_listener.deliver(msg);
         sendDataMessage(msg);
+    }
+
+    @Override
+    public void rush() throws ChatException {
+        //TODO
+        rushBoolean = !rushBoolean;
+        if (rushBoolean) {
+            produceFakeMessages();
+        }
+    }
+
+    /**
+     * Creates a background thread whose only purpose is to fake received
+     * messages
+     */
+    private void produceFakeMessages() {
+    // This thread is to create fake messages...
+        // You can comment
+        Thread thread = new Thread(new Runnable() {
+            public void run() {
+                double base = System.currentTimeMillis();
+                Random rand = new Random();
+                while (rushBoolean) {
+                    try {
+                        int sleep = rand.nextInt(400);
+                        Thread.sleep(800 + sleep);
+                        int no = rand.nextInt(10);
+                        double time = (double) System.currentTimeMillis();
+                        time = (time - base) / 1000.0;
+                        send("Fake" + no + " says: time is " + time);
+                    } catch (Exception ex) {
+                    }
+                }
+            }
+        }, "Fake");
+        thread.start();
     }
 
 }

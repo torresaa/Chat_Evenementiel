@@ -29,6 +29,7 @@ public class ChatGUI {
   String clientName;
   Button enterButton;
   Button leaveButton;
+  Button rushButton; 
   TextArea groupArea;
   Vector<String> group = new Vector<String>();
 
@@ -164,6 +165,11 @@ public class ChatGUI {
     quit_button.addActionListener(new QuitListener(this));
     buttons.add(quit_button);
 
+    rushButton = new Button("rush");
+    rushButton.addActionListener(new RushListener(this));
+    rushButton.setEnabled(true);
+    buttons.add(rushButton);
+    
     inputZone.add(inputArea, BorderLayout.CENTER);
     inputZone.add(buttons, BorderLayout.SOUTH);
 
@@ -254,6 +260,7 @@ public class ChatGUI {
         room.enter(clientName, listener);
         enterButton.setEnabled(false);
         leaveButton.setEnabled(true);
+        rushButton.setEnabled(true);
       } catch (Exception ex) {
         ex.printStackTrace();
         System.exit(-1); // offending exception, commit Seppuku !
@@ -276,6 +283,7 @@ public class ChatGUI {
         room.leave();
         enterButton.setEnabled(true);
         leaveButton.setEnabled(false);
+        rushButton.setEnabled(false);
       } catch (Exception ex) {
         ex.printStackTrace();
         System.exit(-1); // offending exception, commit Seppuku !
@@ -321,4 +329,20 @@ public class ChatGUI {
     }
   }
 
+  class RushListener implements ActionListener {
+      ChatGUI gui;
+      
+      public RushListener(ChatGUI i){
+          gui = i;
+      }
+      
+      public void actionPerformed(ActionEvent e){
+          try{
+              room.rush();
+          }catch(Exception ex){
+              ex.printStackTrace();
+              
+          }
+      }
+  }
 }
