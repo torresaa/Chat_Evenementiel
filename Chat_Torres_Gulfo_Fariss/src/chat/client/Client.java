@@ -145,7 +145,8 @@ public class Client implements AcceptCallback, ConnectCallback, DeliverCallback,
         RemoteUser user = whoHasThisNioChannel(channel);
         this.activeUsers.clear(user.getIndex());
         this.group.remove(user);//Erase user from the list
-        m_listener.left("Client" + user.getIndex());
+        //m_listener.left("Client" + user.getIndex());
+        m_listener.left(user.getName());
         channel.close();
     }
 
@@ -157,7 +158,8 @@ public class Client implements AcceptCallback, ConnectCallback, DeliverCallback,
                 channel.getChannel().finishConnect();
                 channel.setDeliverCallback(this);
                 this.remoteServer = new RemoteServer(channel);
-                this.remoteServer.addMessageToQueue(new ListeningPortMsg(this.localServer.getPort()));
+                this.remoteServer.addMessageToQueue(
+                        new ListeningPortMsg(this.localServer.getPort(), this.m_name));
                 this.nioEngine.registerNioChannel(remoteServer, SelectionKey.OP_WRITE);
                 System.out.println("Server registed.");
             } catch (Exception ex) {
@@ -171,7 +173,8 @@ public class Client implements AcceptCallback, ConnectCallback, DeliverCallback,
                 channel.setDeliverCallback(this);
                 RemoteUser user = whoHasThisNioChannel(channel);
 
-                m_listener.joined("Client" + user.getIndex());
+                //m_listener.joined("Client" + user.getIndex());
+                m_listener.joined(user.getName());
 
                 try {
                     Thread.sleep(1000); // Delay for local test (Synchro)
@@ -229,7 +232,7 @@ public class Client implements AcceptCallback, ConnectCallback, DeliverCallback,
                         + " number of members: " + this.numberOfGroupMembers + ""
                         + " and my index: " + this.myIndex);
                 //Start User interface
-                new ChatGUI("Client" + this.myIndex, this);
+                new ChatGUI(m_name, this);
                 break;
             case Message.GROUP_MEMBER_MSG:
                 int indexValeu = bytes.getInt();
@@ -244,7 +247,22 @@ public class Client implements AcceptCallback, ConnectCallback, DeliverCallback,
                     }
                 }
                 int listenigPort = bytes.getInt();
+
+                byte[] nameB = new byte[bytes.limit() - bytes.position()];
+                bytes.get(nameB);
+                String name = null;
+
+                 {
+                    try {
+                        name = new String(nameB, "UTF-8");
+                    } catch (UnsupportedEncodingException ex) {
+                        Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
+                    }
+                }
+
                 RemoteUser user = new RemoteUser(ip, listenigPort, indexValeu);
+                user.setName(name);
+
                 //if (indexValeu != myIndex) {//if it is not me
                 user.setConnectedCallback(this);
                 this.group.add(user);
@@ -265,7 +283,8 @@ public class Client implements AcceptCallback, ConnectCallback, DeliverCallback,
                 u.setNioChannel(channel);
                 nioEngine.changeKeyAttach(channel, getUserByIndex(remoteIndexValeu));
 
-                m_listener.joined("Client" + u.getIndex());
+                //m_listener.joined("Client" + u.getIndex());
+                m_listener.joined(u.getName());
 
                 System.out.println("NioChannel for user: " + u.toString() + " set.");
                 this.activeUsers.set(remoteIndexValeu); //New member seted
@@ -305,7 +324,21 @@ public class Client implements AcceptCallback, ConnectCallback, DeliverCallback,
                     }
 
                     int listenigPort2 = bytes.getInt();
+
+                    byte[] n = new byte[bytes.limit() - bytes.position()];
+                    bytes.get(n);
+                    String name2 = null;
+
+                    {
+                        try {
+                            name2 = new String(n, "UTF-8");
+                        } catch (UnsupportedEncodingException ex) {
+                            Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
+                        }
+                    }
+
                     RemoteUser user2 = new RemoteUser(ip2, listenigPort2, indexValeu2);
+                    user2.setName(name2);
                     user2.setConnectedCallback(this);
                     this.group.add(user2);
                     System.out.println("--new member: " + user2.toString());
@@ -501,11 +534,11 @@ public class Client implements AcceptCallback, ConnectCallback, DeliverCallback,
             Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
         }
         //m_listener.joined("Client" + this.myIndex);
-        m_listener.joined("Client" + this.myIndex);
         Iterator it = this.group.iterator();
         while (it.hasNext()) {
             RemoteUser user = (RemoteUser) it.next();
             if (user.getIndex() == myIndex) {
+                m_listener.joined(user.getName());
                 it.remove();
             }
             if (user.getIndex() > this.myIndex) {

@@ -18,6 +18,7 @@ public class RemoteUser extends RemoteHost implements ConnectCallback {
     private NioChannelImpl nioChannel= null;
     private int index = -1;
     private ConnectCallback connectedCallback = null;
+    private String name;
     
     
     public RemoteUser(InetAddress ip, int port, int index) {
@@ -43,6 +44,14 @@ public class RemoteUser extends RemoteHost implements ConnectCallback {
     
     public int getIndex(){
         return this.index;
+    }
+    
+    public void setName(String name){
+        this.name = name;
+    }
+    
+    public String getName(){
+        return this.name;
     }
 
     @Override

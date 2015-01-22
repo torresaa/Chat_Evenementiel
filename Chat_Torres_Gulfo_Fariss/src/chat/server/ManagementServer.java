@@ -5,6 +5,7 @@
  */
 package chat.server;
 
+import chat.client.Client;
 import chat.descriptors.RemoteHost;
 import chat.descriptors.RemoteUser;
 import chat.descriptors.messages.GroupMemberMsg;
@@ -17,6 +18,7 @@ import implementation.engine.AcceptCallback;
 import implementation.engine.ConnectCallback;
 import implementation.engine.DeliverCallback;
 import implementation.engine.NioChannelImpl;
+import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SelectionKey;
@@ -157,9 +159,22 @@ public class ManagementServer implements AcceptCallback, ConnectCallback, Delive
                 //PAYLOAD: listeningPort (int)
                 if (newUserAfterFinish.isEmpty()) {
                     int portValeu = bytes.getInt();
-                    RemoteHost user = (RemoteHost) whoHasThisNioChannel(channel);
+                    byte[] nameB = new byte[bytes.limit() - bytes.position()];
+                    bytes.get(nameB);
+                    String name = null;
+
+                    {
+                        try {
+                            name = new String(nameB, "UTF-8");
+                        } catch (UnsupportedEncodingException ex) {
+                            Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
+                        }
+                    }
+
+                    RemoteUser user = whoHasThisNioChannel(channel);
                     if (user.getPort() < 0) { // Listening port not setted 
                         user.setPort(portValeu);
+                        user.setName(name);
                         System.out.println("User " + user.toString() + ": Listening port setted in " + user.getPort());
                         groupFinish();
                     } else { // print incomming message
@@ -169,9 +184,23 @@ public class ManagementServer implements AcceptCallback, ConnectCallback, Delive
                 } else {
                     //new user after group finish
                     int portValeu = bytes.getInt();
+                    
+                    byte[] nameB = new byte[bytes.limit() - bytes.position()];
+                    bytes.get(nameB);
+                    String name = null;
+
+                    {
+                        try {
+                            name = new String(nameB, "UTF-8");
+                        } catch (UnsupportedEncodingException ex) {
+                            Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
+                        }
+                    }
+                    
                     RemoteUser user = (RemoteUser) getUserAfterFinish(channel);
                     if (user.getPort() < 0) { // Listening port not setted 
                         user.setPort(portValeu);
+                        user.setName(name);
                         System.out.println("User " + user.toString() + ": Listening port setted in " + user.getPort());
                         this.group.add(user);
                         this.newUserAfterFinish.remove(user);
@@ -272,24 +301,28 @@ public class ManagementServer implements AcceptCallback, ConnectCallback, Delive
             while (it.hasNext()) {
                 RemoteUser user = (RemoteUser) it.next();
                 this.activeUsers.set(user.getIndex());
-                multicastMessage(new GroupMemberMsg(user.getIndex(), user.getIp(), user.getPort()));
+                multicastMessage(new GroupMemberMsg(user.getIndex(),
+                        user.getIp(), user.getPort(), user.getName()));
             }
         }
 
     }
 
     public void updateNewIncomingUser(RemoteUser user) {
-        user.addMessageToQueue(new GroupeFinishMsg(GROUP_NAME, group.size(), user.getIndex()));
+        user.addMessageToQueue(new GroupeFinishMsg(GROUP_NAME, 
+                group.size(), user.getIndex()));
         Iterator it = this.group.iterator();
         while (it.hasNext()) {
             RemoteUser u = (RemoteUser) it.next();
-            user.addMessageToQueue(new GroupMemberMsg(u.getIndex(), u.getIp(), u.getPort()));
+            user.addMessageToQueue(new GroupMemberMsg(u.getIndex(),
+                    u.getIp(), u.getPort(), u.getName()));
         }
-        
+
         this.nioEngine.changeOpInterest(user.getNioChannel(),
                 SelectionKey.OP_READ | SelectionKey.OP_WRITE);
-        
-        multicastMessage(new UserAfterFinishGroupMsg(user.getIndex(), user.getIp(), user.getPort()) );
+
+        multicastMessage(new UserAfterFinishGroupMsg(user.getIndex(), 
+                user.getIp(), user.getPort(), user.getName()));
         this.activeUsers.set(user.getIndex());
     }
 
@@ -297,12 +330,13 @@ public class ManagementServer implements AcceptCallback, ConnectCallback, Delive
         Iterator it = this.group.iterator();
         while (it.hasNext()) {
             RemoteUser user = (RemoteUser) it.next();
-            user.addMessageToQueue(new GroupeFinishMsg(GROUP_NAME, group.size(), user.getIndex()));
+            user.addMessageToQueue(new GroupeFinishMsg(GROUP_NAME,
+                    group.size(), user.getIndex()));
             this.nioEngine.changeOpInterest(user.getNioChannel(),
                     SelectionKey.OP_READ | SelectionKey.OP_WRITE);
         }
     }
-    
+
     public boolean membersReady() {
         Iterator it = this.group.iterator();
         while (it.hasNext()) {
