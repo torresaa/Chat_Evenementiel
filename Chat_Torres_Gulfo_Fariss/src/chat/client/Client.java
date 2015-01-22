@@ -36,6 +36,7 @@ import java.util.BitSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.NoSuchElementException;
+import java.util.Random;
 import java.util.TreeSet;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -72,6 +73,7 @@ public class Client implements AcceptCallback, ConnectCallback, DeliverCallback,
     String m_name;
     boolean m_inRoom = false;
     EventPump m_pump;
+    boolean rushBoolean = false;
 
     public Client(int minPort, int maxPort) throws ClientException {
 
@@ -521,5 +523,35 @@ public class Client implements AcceptCallback, ConnectCallback, DeliverCallback,
     @Override
     public void rush() throws ChatException{
         //TODO
-    }    
+        rushBoolean = !rushBoolean;
+        if (rushBoolean)
+            produceFakeMessages();
+    }
+    
+  /**
+   * Creates a background thread whose only purpose is to fake received messages
+   */
+  private void produceFakeMessages() {
+    // This thread is to create fake messages...
+    // You can comment
+    Thread thread = new Thread(new Runnable() {
+      public void run() {
+        double base = System.currentTimeMillis();
+        Random rand = new Random();
+        while (rushBoolean) {
+          try {
+            int sleep = rand.nextInt(400);
+            Thread.sleep(800 + sleep);
+            int no = rand.nextInt(10);
+            double time = (double) System.currentTimeMillis();
+            time = (time - base) / 1000.0;            
+            send("Fake" + no + " says: time is " + time);
+          } catch (Exception ex) {
+          }
+        }
+      }
+    }, "Fake");
+    thread.start();
+  }
+
 }
