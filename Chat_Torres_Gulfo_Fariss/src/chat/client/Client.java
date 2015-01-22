@@ -143,7 +143,10 @@ public class Client implements AcceptCallback, ConnectCallback, DeliverCallback,
         //When tis method is called, the key for this channel has been 
         //erased. The only things to do is to lock fro the user in the lis of members
         //and then add it to the possible reconnection list
-        
+        RemoteUser user = whoHasThisNioChannel(channel);
+        this.activeUsers.clear(user.getIndex());
+        this.group.remove(user);//Erase user from the list
+        m_listener.left("Client"+user.getIndex());
         channel.close();
     }
 

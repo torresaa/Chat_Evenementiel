@@ -15,7 +15,7 @@ import java.util.LinkedList;
  *
  * @author aquilest
  */
-public abstract class RemoteHost implements Comparable<RemoteHost>, Serializable {
+public abstract class RemoteHost implements Serializable {
 
     private InetAddress ip;
     private int listenPort = -1;
@@ -58,12 +58,13 @@ public abstract class RemoteHost implements Comparable<RemoteHost>, Serializable
 
     @Override
     public boolean equals(Object o) {
+        RemoteHost t = (RemoteHost) o;
+        if(this.ip.equals(t.getIp())){
+            if(this.listenPort == t.getPort()){
+                return true;
+            }
+        }
         return false;
-    }
-
-    @Override
-    public int compareTo(RemoteHost t) {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 
     @Override

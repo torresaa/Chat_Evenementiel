@@ -40,6 +40,7 @@ public class ManagementServer implements AcceptCallback, ConnectCallback, Delive
     private int maxUsers;
     private LinkedList<RemoteUser> group; // Stock users
     private static final String GROUP_NAME = "000GROUP000000000001"; // For the future!
+    private int userIndexStack = 0;
 
     private TreeSet<ReceivedDeliverMsg> deliverList;
     private BitSet activeUsers;
@@ -99,7 +100,7 @@ public class ManagementServer implements AcceptCallback, ConnectCallback, Delive
     public void accepted(NioServerImpl server, NioChannelImpl channel) {
         if (group.size() < this.maxUsers) { //If the group is not complete
             channel.setDeliverCallback(this); // Set callback of incomming message
-            RemoteUser user = new RemoteUser(channel, group.size() + 1);
+            RemoteUser user = new RemoteUser(channel, userIndexStack++);
             try {
                 this.group.add(user);
                 this.nioEngine.registerNioChannel(user, SelectionKey.OP_READ);
@@ -120,6 +121,8 @@ public class ManagementServer implements AcceptCallback, ConnectCallback, Delive
         //erased. The only things to do is to lock fro the user in the lis of members
         //and then add it to the possible reconnection list
         RemoteUser user = whoHasThisNioChannel(channel);
+        this.activeUsers.clear(user.getIndex());
+        this.group.remove(user);//Erase user from the list
         channel.close();
         System.out.println("User: " + user.toString() + " is out.");
     }
@@ -166,7 +169,7 @@ public class ManagementServer implements AcceptCallback, ConnectCallback, Delive
                             new ReceivedDeliverMsg(lc, activeUsers, u.getIndex()));
                     verifyDeliver();
                 }
-                System.out.println("Client" + u.getIndex() + " deliver Message LC= " + lc);
+                //System.out.println("Client" + u.getIndex() + " deliver Message LC= " + lc);
                 break;
 
             case Message.USER_LEAVE_MSG:

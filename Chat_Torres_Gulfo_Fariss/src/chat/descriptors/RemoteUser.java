@@ -61,5 +61,5 @@ public class RemoteUser extends RemoteHost implements ConnectCallback {
     public void setConnectedCallback(ConnectCallback callback){
         this.connectedCallback = callback;
     }
-        
-}
+       
+ }
