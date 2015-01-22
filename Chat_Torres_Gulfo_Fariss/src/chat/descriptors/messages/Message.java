@@ -25,6 +25,10 @@ public abstract class Message {
     public static final int DATA_ACK_MSG = 22;
     public static final int MY_INDEX_MSG = 23;
     
+    //BrodcastMSG
+    public static final int USER_LEAVE_MSG = 31;
+    public static final int COMINGBACK_MSG = 32;
+    
     private byte[] msg;
     
     private int length;

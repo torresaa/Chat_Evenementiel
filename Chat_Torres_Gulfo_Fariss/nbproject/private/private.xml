@@ -3,6 +3,10 @@
     <editor-bookmarks xmlns="http://www.netbeans.org/ns/editor-bookmarks/2" lastBookmarkId="0"/>
     <open-files xmlns="http://www.netbeans.org/ns/projectui-open-files/2">
         <group>
+            <file>file:/C:/Users/aquilest/Documents/NetBeansProjects/Chat_Evenementiel/Chat_Torres_Gulfo_Fariss/src/implementation/engine/NioServerImpl.java</file>
+            <file>file:/C:/Users/aquilest/Documents/NetBeansProjects/Chat_Evenementiel/Chat_Torres_Gulfo_Fariss/src/chat/descriptors/messages/UserLeaveMsg.java</file>
+            <file>file:/C:/Users/aquilest/Documents/NetBeansProjects/Chat_Evenementiel/Chat_Torres_Gulfo_Fariss/src/chat/client/test/Client1.java</file>
+            <file>file:/C:/Users/aquilest/Documents/NetBeansProjects/Chat_Evenementiel/Chat_Torres_Gulfo_Fariss/src/chat/server/test/ServerMain.java</file>
             <file>file:/C:/Users/aquilest/Documents/NetBeansProjects/Chat_Evenementiel/Chat_Torres_Gulfo_Fariss/src/chat/client/test/ClientMain.java</file>
             <file>file:/C:/Users/aquilest/Documents/NetBeansProjects/Chat_Evenementiel/Chat_Torres_Gulfo_Fariss/src/chat/descriptors/messages/DataMsg.java</file>
             <file>file:/C:/Users/aquilest/Documents/NetBeansProjects/Chat_Evenementiel/Chat_Torres_Gulfo_Fariss/src/implementation/engine/NioEngineImpl.java</file>
@@ -11,14 +15,17 @@
             <file>file:/C:/Users/aquilest/Documents/NetBeansProjects/Chat_Evenementiel/Chat_Torres_Gulfo_Fariss/src/chat/descriptors/RemoteUser.java</file>
             <file>file:/C:/Users/aquilest/Documents/NetBeansProjects/Chat_Evenementiel/Chat_Torres_Gulfo_Fariss/src/chat/client/ReceivedMsg.java</file>
             <file>file:/C:/Users/aquilest/Documents/NetBeansProjects/Chat_Evenementiel/Chat_Torres_Gulfo_Fariss/src/chat/gui/test/EventPump.java</file>
-            <file>file:/C:/Users/aquilest/Documents/NetBeansProjects/Chat_Evenementiel/Chat_Torres_Gulfo_Fariss/src/chat/server/ManagementServer.java</file>
             <file>file:/C:/Users/aquilest/Documents/NetBeansProjects/Chat_Evenementiel/Chat_Torres_Gulfo_Fariss/src/chat/descriptors/messages/Message.java</file>
+            <file>file:/C:/Users/aquilest/Documents/NetBeansProjects/Chat_Evenementiel/Chat_Torres_Gulfo_Fariss/src/chat/server/ManagementServer.java</file>
+            <file>file:/C:/Users/aquilest/Documents/NetBeansProjects/Chat_Evenementiel/Chat_Torres_Gulfo_Fariss/src/chat/descriptors/messages/DeliverMsg.java</file>
             <file>file:/C:/Users/aquilest/Documents/NetBeansProjects/Chat_Evenementiel/Chat_Torres_Gulfo_Fariss/src/chat/gui/IChatRoom.java</file>
+            <file>file:/C:/Users/aquilest/Documents/NetBeansProjects/Chat_Evenementiel/Chat_Torres_Gulfo_Fariss/src/chat/client/test/Client3.java</file>
             <file>file:/C:/Users/aquilest/Documents/NetBeansProjects/Chat_Evenementiel/Chat_Torres_Gulfo_Fariss/src/chat/gui/ChatGUI.java</file>
-            <file>file:/C:/Users/aquilest/Documents/NetBeansProjects/Chat_Evenementiel/Chat_Torres_Gulfo_Fariss/src/chat/descriptors/Utils.java</file>
+            <file>file:/C:/Users/aquilest/Documents/NetBeansProjects/Chat_Evenementiel/Chat_Torres_Gulfo_Fariss/src/chat/descriptors/messages/ComingBackMsg.java</file>
             <file>file:/C:/Users/aquilest/Documents/NetBeansProjects/Chat_Evenementiel/Chat_Torres_Gulfo_Fariss/src/implementation/engine/NioChannelImpl.java</file>
-            <file>file:/C:/Users/aquilest/Documents/NetBeansProjects/Chat_Evenementiel/Chat_Torres_Gulfo_Fariss/src/chat/client/Client.java</file>
+            <file>file:/C:/Users/aquilest/Documents/NetBeansProjects/Chat_Evenementiel/Chat_Torres_Gulfo_Fariss/src/chat/descriptors/Utils.java</file>
             <file>file:/C:/Users/aquilest/Documents/NetBeansProjects/Chat_Evenementiel/Chat_Torres_Gulfo_Fariss/src/chat/descriptors/messages/DataAckMsg.java</file>
+            <file>file:/C:/Users/aquilest/Documents/NetBeansProjects/Chat_Evenementiel/Chat_Torres_Gulfo_Fariss/src/chat/client/Client.java</file>
         </group>
     </open-files>
 </project-private>

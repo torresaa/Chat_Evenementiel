@@ -19,8 +19,11 @@ import implementation.engine.NioChannelImpl;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SelectionKey;
+import java.util.BitSet;
 import java.util.Iterator;
 import java.util.LinkedList;
+import java.util.NoSuchElementException;
+import java.util.TreeSet;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -36,7 +39,10 @@ public class ManagementServer implements AcceptCallback, ConnectCallback, Delive
     private int maxPort;
     private int maxUsers;
     private LinkedList<RemoteUser> group; // Stock users
-    private static final String GROUP_NAME = "000GROUP000000000001";
+    private static final String GROUP_NAME = "000GROUP000000000001"; // For the future!
+
+    private TreeSet<ReceivedDeliverMsg> deliverList;
+    private BitSet activeUsers;
 
     //Threads
     private Thread nioLoop;
@@ -51,6 +57,8 @@ public class ManagementServer implements AcceptCallback, ConnectCallback, Delive
         this.maxPort = maxPort;
         this.maxUsers = maxUsers;
         this.group = new LinkedList<RemoteUser>();
+        this.deliverList = new TreeSet<ReceivedDeliverMsg>();
+        this.activeUsers = new BitSet();
     }
 
     public ManagementServer() throws ServerException {
@@ -63,22 +71,28 @@ public class ManagementServer implements AcceptCallback, ConnectCallback, Delive
                 server = this.nioEngine.listen(i, this);
                 break;
             } catch (Exception e) {
-                e.printStackTrace();
+                //e.printStackTrace();
                 System.err.println("Starting server in port " + i + " not possible.");
             }
         }
         if (server != null && server.getPort() > 0) {
-            System.out.println("Running server on port " + server.getPort());
+            System.out.println("Running server on port " + server.getPort() + "...");
         } else {
             throw new ServerException("Server can not start in ports " + minPort + " - "
                     + maxPort + ".");
         }
     }
 
-    public void initServer() throws ServerException {
+    public void initServer() {
         this.nioLoop = new Thread(this.nioEngine, "NioLoopServer");
         this.nioLoop.start(); //TODO: Watch thread behavior
-        startListening();
+        try {
+            startListening();
+        } catch (ServerException ex) {
+            System.err.println("Server can not be initialize.");
+            System.err.println(ex.getMessage());
+            System.exit(1);
+        }
     }
 
     @Override
@@ -134,16 +148,37 @@ public class ManagementServer implements AcceptCallback, ConnectCallback, Delive
                     System.out.println("User " + user.toString() + " sends: \n" + portValeu);
                 }
                 break;
-                
+
             case Message.ACK_SERVER:
                 System.out.println("--Server Ack--");
                 break;
-                
+
             case Message.DELIVER_MSG:
                 //TODO: Compare msg
                 long lc = bytes.getLong();
                 RemoteUser u = whoHasThisNioChannel(channel);
-                System.out.println("Client"+u.getIndex()+" deliver Message LC= "+ lc);
+                ReceivedDeliverMsg msg = getReceivedDeliverMsgByLc(lc);
+                if(msg != null){
+                    msg.setDeliver(u.getIndex());
+                    verifyDeliver();
+                }else {
+                    this.deliverList.add(
+                            new ReceivedDeliverMsg(lc, activeUsers, u.getIndex()));
+                    verifyDeliver();
+                }
+                System.out.println("Client" + u.getIndex() + " deliver Message LC= " + lc);
+                break;
+
+            case Message.USER_LEAVE_MSG:
+                //TODO:
+                int index = bytes.getInt();
+                System.err.println("Client" + index + " leave chat room.");
+                break;
+
+            case Message.COMINGBACK_MSG:
+                //TODO:
+                int i = bytes.getInt();
+                System.err.println("Client" + i + " leave chat room.");
                 break;
         }
     }
@@ -189,6 +224,7 @@ public class ManagementServer implements AcceptCallback, ConnectCallback, Delive
 
             while (it.hasNext()) {
                 RemoteUser user = (RemoteUser) it.next();
+                this.activeUsers.set(user.getIndex());
                 multicastMessage(new GroupMemberMsg(user.getIndex(), user.getIp(), user.getPort()));
             }
         }
@@ -207,7 +243,6 @@ public class ManagementServer implements AcceptCallback, ConnectCallback, Delive
 
     public boolean membersReady() {
         Iterator it = this.group.iterator();
-
         while (it.hasNext()) {
             RemoteHost user = (RemoteHost) it.next();
             if (user.getPort() <= 0) {
@@ -216,6 +251,39 @@ public class ManagementServer implements AcceptCallback, ConnectCallback, Delive
         }
 
         return true;
+    }
+    
+    
+    public void verifyDeliver(){
+        try{
+            if (deliverList.first().allDeliverComplete()){
+                System.out.println(deliverList.pollFirst().toString()
+                        +" was well delived by all users");
+                verifyDeliver();
+            }else if(deliverList.first().timeOutComplete()){
+                System.err.println(deliverList.pollFirst().toString()
+                        +" time out. [Not delivered]");
+                //verifyDeliver();
+            }
+        }catch(NoSuchElementException e){
+            //No element in the list
+        }
+    }
+
+    /**
+     * Look for incoming ack in the list with the same lc
+     * @param lc
+     * @return null is there is not
+     */
+    public ReceivedDeliverMsg getReceivedDeliverMsgByLc(long lc) {
+        Iterator<ReceivedDeliverMsg> it = deliverList.iterator();
+        while (it.hasNext()) {
+            ReceivedDeliverMsg msg = it.next();
+            if (msg.getLcMessage() == lc) {
+                return msg;
+            }
+        }
+        return null;
     }
 
 }

@@ -12,16 +12,21 @@ import java.util.BitSet;
  * 
  */
 public class ReceivedMsg implements Comparable<ReceivedMsg>{
+    
+    public static final long WAIT_TIME_MILIS = 2000;
+    
     private long lcMessage;
     private BitSet ack;
     private byte[] data;
-    private int numberOfAck;
+    private BitSet activeUsers; // Active users in the moment we receive the msg
+    private long timeReception; 
     
-    public ReceivedMsg(long lc, int numberOfMembers, byte[] data){
+    public ReceivedMsg(long lc, BitSet activeUsers, byte[] data){
         this.lcMessage = lc;
-        this.ack = new BitSet(numberOfMembers);
+        this.ack = new BitSet(activeUsers.length());
+        this.activeUsers = (BitSet) activeUsers.clone();
         this.data = data;
-        this.numberOfAck = numberOfMembers;
+        this.timeReception = System.currentTimeMillis();
     }
     
     public long getLcMessage(){
@@ -40,11 +45,14 @@ public class ReceivedMsg implements Comparable<ReceivedMsg>{
         return this.ack;
     }
     
+    public long getTimeReception(){
+        return this.timeReception;
+    }
+    
     public boolean allAcksComplete(){
-        if(this.ack.cardinality() == this.numberOfAck){
-            return true;
-        }
-        return false;
+        BitSet tempAcks = (BitSet)this.ack.clone();
+        tempAcks.and(this.activeUsers);
+        return tempAcks.cardinality() == this.activeUsers.cardinality();
     }
     
     @Override

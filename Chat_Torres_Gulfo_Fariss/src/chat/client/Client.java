@@ -8,12 +8,14 @@ package chat.client;
 import chat.descriptors.RemoteServer;
 import chat.descriptors.RemoteUser;
 import chat.descriptors.messages.AckServer;
+import chat.descriptors.messages.ComingBackMsg;
 import chat.descriptors.messages.DataAckMsg;
 import chat.descriptors.messages.DataMsg;
 import chat.descriptors.messages.DeliverMsg;
 import chat.descriptors.messages.ListeningPortMsg;
 import chat.descriptors.messages.Message;
 import chat.descriptors.messages.MyIndexMsg;
+import chat.descriptors.messages.UserLeaveMsg;
 import chat.gui.ChatException;
 import chat.gui.ChatGUI;
 import chat.gui.IChatRoom;
@@ -30,8 +32,10 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SelectionKey;
+import java.util.BitSet;
 import java.util.Iterator;
 import java.util.LinkedList;
+import java.util.NoSuchElementException;
 import java.util.TreeSet;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -49,6 +53,8 @@ public class Client implements AcceptCallback, ConnectCallback, DeliverCallback,
     private int minPort;
     private int maxPort;
     private LinkedList<RemoteUser> group = null; // Stock users
+    private LinkedList<RemoteUser> dieUsers = null; // Stock users
+    private BitSet activeUsers;
 
     private String groupName = null;
     private int numberOfGroupMembers = -1;
@@ -56,6 +62,7 @@ public class Client implements AcceptCallback, ConnectCallback, DeliverCallback,
 
     private long lc;
     private TreeSet<ReceivedMsg> msgList;
+    private boolean userOut = false;
 
     //Thread
     private Thread nioLoop;
@@ -78,6 +85,7 @@ public class Client implements AcceptCallback, ConnectCallback, DeliverCallback,
         this.minPort = minPort;
         this.maxPort = maxPort;
         this.msgList = new TreeSet<ReceivedMsg>();
+        this.activeUsers = new BitSet();
     }
 
     public void contactServer(String host, int port) throws ClientException {
@@ -135,6 +143,7 @@ public class Client implements AcceptCallback, ConnectCallback, DeliverCallback,
         //When tis method is called, the key for this channel has been 
         //erased. The only things to do is to lock fro the user in the lis of members
         //and then add it to the possible reconnection list
+        
         channel.close();
     }
 
@@ -155,12 +164,13 @@ public class Client implements AcceptCallback, ConnectCallback, DeliverCallback,
             }
         } else {
             try {
-                // Server not defined, that means this is the first connected
+                //
                 channel.getChannel().finishConnect();
                 channel.setDeliverCallback(this);
                 RemoteUser user = whoHasThisNioChannel(channel);
                 user.addMessageToQueue(new MyIndexMsg(this.myIndex));
                 this.nioEngine.registerNioChannel(user, SelectionKey.OP_WRITE);
+                this.activeUsers.set(user.getIndex());// Set active user
                 System.out.println("User registred");
             } catch (Exception ex) {
                 ex.printStackTrace();
@@ -225,9 +235,9 @@ public class Client implements AcceptCallback, ConnectCallback, DeliverCallback,
                 int listenigPort = bytes.getInt();
                 RemoteUser user = new RemoteUser(ip, listenigPort, indexValeu);
                 //if (indexValeu != myIndex) {//if it is not me
-                    user.setConnectedCallback(this);
-                    this.group.add(user);
-                    System.out.println("--new member: " + user.toString());
+                user.setConnectedCallback(this);
+                this.group.add(user);
+                System.out.println("--new member: " + user.toString());
                 //}
 
                 if (group.size() == this.numberOfGroupMembers) {
@@ -244,6 +254,7 @@ public class Client implements AcceptCallback, ConnectCallback, DeliverCallback,
                 u.setNioChannel(channel);
                 nioEngine.changeKeyAttach(channel, getUserByIndex(remoteIndexValeu));
                 System.out.println("NioChannel for user: " + u.toString() + " set.");
+                this.activeUsers.set(remoteIndexValeu); //New member seted
                 break;
             case Message.DATA_MSG:
                 long lc = bytes.getLong();
@@ -257,6 +268,12 @@ public class Client implements AcceptCallback, ConnectCallback, DeliverCallback,
                 long lc2 = bytes.getLong();
                 incomingAck(whoHasThisNioChannel(channel).getIndex(), lc2);
 
+                break;
+
+            case Message.USER_LEAVE_MSG:
+                //TODO:
+                int index = bytes.getInt();
+                System.err.println("Client" + index +" leave chat room.");
                 break;
         }
 
@@ -286,7 +303,7 @@ public class Client implements AcceptCallback, ConnectCallback, DeliverCallback,
      * @param data
      */
     public void incomingDataMsg(long lc, byte[] data) {
-        ReceivedMsg msg = new ReceivedMsg(lc, this.numberOfGroupMembers, data);
+        ReceivedMsg msg = new ReceivedMsg(lc, this.activeUsers, data);
         this.msgList.add(msg);
         this.lc = Math.max(this.lc, lc) + 1;
         sendAckMessage(lc);
@@ -321,12 +338,46 @@ public class Client implements AcceptCallback, ConnectCallback, DeliverCallback,
      */
     public void verifyDeliver() {
         //TODO: suport for disable users
-        if (msgList.first().allAcksComplete()) {
-            ReceivedMsg msg = msgList.pollFirst();
-            this.remoteServer.addMessageToQueue(new DeliverMsg(msg.getLcMessage()));
-            nioEngine.changeOpInterest(this.remoteServer.getNioChannel(), 
+        try {
+            if (msgList.first().allAcksComplete()) {
+                ReceivedMsg msg = msgList.pollFirst();
+                this.remoteServer.addMessageToQueue(new DeliverMsg(msg.getLcMessage()));
+                nioEngine.changeOpInterest(this.remoteServer.getNioChannel(),
+                        SelectionKey.OP_READ | SelectionKey.OP_WRITE);
+                displayMessage(msg.getData());
+                verifyDeliver();//Recursive
+            }else{
+                if ((System.currentTimeMillis() - msgList.first().getTimeReception()) 
+                        > ReceivedMsg.WAIT_TIME_MILIS){
+                    //if the max wait time was complete
+                    ReceivedMsg msg = msgList.pollFirst();
+                    String err_msg  = "ERROR: Message "+msg.getLcMessage()+" deliver time out.";
+                    this.displayMessage(err_msg.getBytes());
+                }
+            }
+        } catch (NoSuchElementException ex) {
+            //Noting to do, no element in the list
+        }
+    }
+
+    /**
+     * When leaving chat room, called by GUI call back leave.
+     */
+    public void leavingChatRoom() {
+        brodcastMessage(new UserLeaveMsg(myIndex));
+        this.userOut = true;
+    }
+
+    /**
+     * Re-enter after being out, message sended to server (only with leaving)
+     */
+    public void comingbackToChatRoom() {
+        if (this.userOut) {
+            remoteServer.addMessageToQueue(new ComingBackMsg(myIndex));
+            nioEngine.changeOpInterest(remoteServer.getNioChannel(),
                     SelectionKey.OP_READ | SelectionKey.OP_WRITE);
-            displayMessage(msg.getData());
+            m_inRoom = true;
+            userOut = false;
         }
     }
 
@@ -377,6 +428,18 @@ public class Client implements AcceptCallback, ConnectCallback, DeliverCallback,
         }
     }
 
+    /**
+     * Send msg to server and all users
+     *
+     * @param msg
+     */
+    public void brodcastMessage(Message msg) {
+        this.remoteServer.addMessageToQueue(msg);
+        nioEngine.changeOpInterest(remoteServer.getNioChannel(),
+                SelectionKey.OP_READ | SelectionKey.OP_WRITE);
+        multicastMessage(msg);
+    }
+
     public RemoteUser getUserByIndex(int index) {
         Iterator it = group.iterator();
         while (it.hasNext()) {
@@ -404,7 +467,9 @@ public class Client implements AcceptCallback, ConnectCallback, DeliverCallback,
         while (it.hasNext()) {
             RemoteUser user = (RemoteUser) it.next();
             m_listener.joined("Client" + user.getIndex());
-            if(user.getIndex() == myIndex)it.remove();
+            if (user.getIndex() == myIndex) {
+                it.remove();
+            }
             if (user.getIndex() > this.myIndex) {
                 contactUser(user);
             }
@@ -427,19 +492,21 @@ public class Client implements AcceptCallback, ConnectCallback, DeliverCallback,
         if (m_inRoom) {
             throw new ChatException("Already in the chat room");
         }
-        m_inRoom = true;
-        m_name = clientName;
-        m_listener = l;
-        //m_pump.enqueue(new Runnable() {
-        //    public void run() {
-        //m_listener.joined(m_name);
-        //    }
-        //;
+
+        if (userOut) {
+            comingbackToChatRoom();
+        } else {
+            m_inRoom = true;
+            m_name = clientName;
+            m_listener = l;
+        }
     }
 
     @Override
     public void leave() throws ChatException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        System.out.println("Leave chat Room");
+        m_inRoom = false;
+        leavingChatRoom();
     }
 
     @Override

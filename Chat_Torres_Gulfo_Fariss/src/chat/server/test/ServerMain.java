@@ -24,7 +24,7 @@ public class ServerMain {
              * NioEngine.listen, init NioServer over server
              */
             server.initServer();
-            System.out.println("Exit");
+            //System.out.println("Exit");
             while(true){
             }
         } catch (ServerException ex) {
