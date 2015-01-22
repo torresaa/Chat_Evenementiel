@@ -35,5 +35,6 @@ public interface IChatRoom {
    */   
   public void send (String msg) throws ChatException;
 
-
+  public void rush () throws ChatException;
+  
 }

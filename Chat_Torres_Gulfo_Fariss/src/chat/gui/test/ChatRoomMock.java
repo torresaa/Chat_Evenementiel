@@ -123,4 +123,10 @@ public class ChatRoomMock implements IChatRoom {
     });
   }
 
+  @Override
+  public void rush() throws ChatException {
+      System.out.println("FUNCIONA?");
+      System.out.println("SI");
+  }
+  
 }

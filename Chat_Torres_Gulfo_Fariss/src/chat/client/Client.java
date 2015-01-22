@@ -517,5 +517,9 @@ public class Client implements AcceptCallback, ConnectCallback, DeliverCallback,
         //m_listener.deliver(msg);
         sendDataMessage(msg);
     }
-
+    
+    @Override
+    public void rush() throws ChatException{
+        //TODO
+    }    
 }
