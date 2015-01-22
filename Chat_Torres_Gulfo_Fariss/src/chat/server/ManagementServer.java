@@ -10,6 +10,7 @@ import chat.descriptors.RemoteUser;
 import chat.descriptors.messages.GroupMemberMsg;
 import chat.descriptors.messages.GroupeFinishMsg;
 import chat.descriptors.messages.Message;
+import chat.descriptors.messages.UserAfterFinishGroupMsg;
 import implementation.engine.NioEngineImpl;
 import implementation.engine.NioServerImpl;
 import implementation.engine.AcceptCallback;
@@ -48,6 +49,9 @@ public class ManagementServer implements AcceptCallback, ConnectCallback, Delive
     //Threads
     private Thread nioLoop;
 
+    //Reinsertion Users
+    private LinkedList<RemoteUser> newUserAfterFinish; //
+
     public ManagementServer(int minPort, int maxPort, int maxUsers) throws ServerException {
         try {
             this.nioEngine = new NioEngineImpl();
@@ -60,6 +64,7 @@ public class ManagementServer implements AcceptCallback, ConnectCallback, Delive
         this.group = new LinkedList<RemoteUser>();
         this.deliverList = new TreeSet<ReceivedDeliverMsg>();
         this.activeUsers = new BitSet();
+        this.newUserAfterFinish = new LinkedList<RemoteUser>();
     }
 
     public ManagementServer() throws ServerException {
@@ -98,7 +103,7 @@ public class ManagementServer implements AcceptCallback, ConnectCallback, Delive
 
     @Override
     public void accepted(NioServerImpl server, NioChannelImpl channel) {
-        if (group.size() < this.maxUsers) { //If the group is not complete
+        if (this.userIndexStack < this.maxUsers) { //If the group is not complete
             channel.setDeliverCallback(this); // Set callback of incomming message
             RemoteUser user = new RemoteUser(channel, userIndexStack++);
             try {
@@ -110,7 +115,17 @@ public class ManagementServer implements AcceptCallback, ConnectCallback, Delive
                 System.err.println("New channel can not be registred. The connection has been closed.");
             }
         } else { // If the group is complete
-            server.close(); // Stop accepting new connections
+            //server.close(); // Stop accepting new connections
+            channel.setDeliverCallback(this); // Set callback of incomming message
+            RemoteUser user = new RemoteUser(channel, userIndexStack++);
+            try {
+                this.newUserAfterFinish.add(user);
+                this.nioEngine.registerNioChannel(user, SelectionKey.OP_READ);
+            } catch (ClosedChannelException ex) {
+                //TODO;
+                channel.close();
+                System.err.println("New channel can not be registred. The connection has been closed.");
+            }
         }
     }
 
@@ -139,16 +154,32 @@ public class ManagementServer implements AcceptCallback, ConnectCallback, Delive
 
         switch (typeValeu) {
             case Message.LISTENING_PORT_MSG:
-                //PAYLOAD: listenigPort (int)
-                int portValeu = bytes.getInt();
-                RemoteHost user = (RemoteHost) whoHasThisNioChannel(channel);
-                if (user.getPort() < 0) { // Listening port not setted 
-                    user.setPort(portValeu);
-                    System.out.println("User " + user.toString() + ": Listening port setted in " + user.getPort());
-                    groupFinish();
-                } else { // print incomming message
-                    //TODO: Usefull to debug
-                    System.out.println("User " + user.toString() + " sends: \n" + portValeu);
+                //PAYLOAD: listeningPort (int)
+                if (newUserAfterFinish.isEmpty()) {
+                    int portValeu = bytes.getInt();
+                    RemoteHost user = (RemoteHost) whoHasThisNioChannel(channel);
+                    if (user.getPort() < 0) { // Listening port not setted 
+                        user.setPort(portValeu);
+                        System.out.println("User " + user.toString() + ": Listening port setted in " + user.getPort());
+                        groupFinish();
+                    } else { // print incomming message
+                        //TODO: Usefull to debug
+                        System.out.println("User " + user.toString() + " sends: \n" + portValeu);
+                    }
+                } else {
+                    //new user after group finish
+                    int portValeu = bytes.getInt();
+                    RemoteUser user = (RemoteUser) getUserAfterFinish(channel);
+                    if (user.getPort() < 0) { // Listening port not setted 
+                        user.setPort(portValeu);
+                        System.out.println("User " + user.toString() + ": Listening port setted in " + user.getPort());
+                        this.group.add(user);
+                        this.newUserAfterFinish.remove(user);
+                        updateNewIncomingUser(user);
+                    } else { // print incomming message
+                        //TODO: Usefull to debug
+                        System.out.println("User " + user.toString() + " sends: \n" + portValeu);
+                    }
                 }
                 break;
 
@@ -161,10 +192,10 @@ public class ManagementServer implements AcceptCallback, ConnectCallback, Delive
                 long lc = bytes.getLong();
                 RemoteUser u = whoHasThisNioChannel(channel);
                 ReceivedDeliverMsg msg = getReceivedDeliverMsgByLc(lc);
-                if(msg != null){
+                if (msg != null) {
                     msg.setDeliver(u.getIndex());
                     verifyDeliver();
-                }else {
+                } else {
                     this.deliverList.add(
                             new ReceivedDeliverMsg(lc, activeUsers, u.getIndex()));
                     verifyDeliver();
@@ -174,6 +205,7 @@ public class ManagementServer implements AcceptCallback, ConnectCallback, Delive
 
             case Message.USER_LEAVE_MSG:
                 //TODO:
+                //
                 int index = bytes.getInt();
                 System.err.println("Client" + index + " leave chat room.");
                 break;
@@ -189,6 +221,18 @@ public class ManagementServer implements AcceptCallback, ConnectCallback, Delive
     public RemoteUser whoHasThisNioChannel(NioChannelImpl nioChannel) {
         Iterator it;
         it = group.iterator();
+        while (it.hasNext()) {
+            RemoteUser user = (RemoteUser) it.next();
+            if (user.getNioChannel().equals(nioChannel)) {
+                return user;
+            }
+        }
+        return null;
+    }
+
+    public RemoteUser getUserAfterFinish(NioChannelImpl nioChannel) {
+        Iterator it;
+        it = newUserAfterFinish.iterator();
         while (it.hasNext()) {
             RemoteUser user = (RemoteUser) it.next();
             if (user.getNioChannel().equals(nioChannel)) {
@@ -234,6 +278,21 @@ public class ManagementServer implements AcceptCallback, ConnectCallback, Delive
 
     }
 
+    public void updateNewIncomingUser(RemoteUser user) {
+        user.addMessageToQueue(new GroupeFinishMsg(GROUP_NAME, group.size(), user.getIndex()));
+        Iterator it = this.group.iterator();
+        while (it.hasNext()) {
+            RemoteUser u = (RemoteUser) it.next();
+            user.addMessageToQueue(new GroupMemberMsg(u.getIndex(), u.getIp(), u.getPort()));
+        }
+        
+        this.nioEngine.changeOpInterest(user.getNioChannel(),
+                SelectionKey.OP_READ | SelectionKey.OP_WRITE);
+        
+        multicastMessage(new UserAfterFinishGroupMsg(user.getIndex(), user.getIp(), user.getPort()) );
+        this.activeUsers.set(user.getIndex());
+    }
+
     public void sendGroupFinishMsg() {
         Iterator it = this.group.iterator();
         while (it.hasNext()) {
@@ -243,7 +302,7 @@ public class ManagementServer implements AcceptCallback, ConnectCallback, Delive
                     SelectionKey.OP_READ | SelectionKey.OP_WRITE);
         }
     }
-
+    
     public boolean membersReady() {
         Iterator it = this.group.iterator();
         while (it.hasNext()) {
@@ -255,26 +314,26 @@ public class ManagementServer implements AcceptCallback, ConnectCallback, Delive
 
         return true;
     }
-    
-    
-    public void verifyDeliver(){
-        try{
-            if (deliverList.first().allDeliverComplete()){
+
+    public void verifyDeliver() {
+        try {
+            if (deliverList.first().allDeliverComplete()) {
                 System.out.println(deliverList.pollFirst().toString()
-                        +" was well delived by all users");
+                        + " was well delived by all users");
                 verifyDeliver();
-            }else if(deliverList.first().timeOutComplete()){
+            } else if (deliverList.first().timeOutComplete()) {
                 System.err.println(deliverList.pollFirst().toString()
-                        +" time out. [Not delivered]");
+                        + " time out. [Not delivered]");
                 //verifyDeliver();
             }
-        }catch(NoSuchElementException e){
+        } catch (NoSuchElementException e) {
             //No element in the list
         }
     }
 
     /**
      * Look for incoming ack in the list with the same lc
+     *
      * @param lc
      * @return null is there is not
      */

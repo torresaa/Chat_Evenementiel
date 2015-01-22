@@ -75,7 +75,7 @@ public class Client implements AcceptCallback, ConnectCallback, DeliverCallback,
     EventPump m_pump;
     boolean rushBoolean = false;
 
-    public Client(int minPort, int maxPort) throws ClientException {
+    public Client(String name, int minPort, int maxPort) throws ClientException {
 
         try {
             this.nioEngine = new NioEngineImpl();
@@ -88,6 +88,7 @@ public class Client implements AcceptCallback, ConnectCallback, DeliverCallback,
         this.maxPort = maxPort;
         this.msgList = new TreeSet<ReceivedMsg>();
         this.activeUsers = new BitSet();
+        this.m_name = name;
     }
 
     public void contactServer(String host, int port) throws ClientException {
@@ -141,10 +142,6 @@ public class Client implements AcceptCallback, ConnectCallback, DeliverCallback,
 
     @Override
     public void closed(NioChannelImpl channel) {
-        //TODO: User reconnection
-        //When tis method is called, the key for this channel has been 
-        //erased. The only things to do is to lock fro the user in the lis of members
-        //and then add it to the possible reconnection list
         RemoteUser user = whoHasThisNioChannel(channel);
         this.activeUsers.clear(user.getIndex());
         this.group.remove(user);//Erase user from the list
@@ -173,6 +170,15 @@ public class Client implements AcceptCallback, ConnectCallback, DeliverCallback,
                 channel.getChannel().finishConnect();
                 channel.setDeliverCallback(this);
                 RemoteUser user = whoHasThisNioChannel(channel);
+
+                m_listener.joined("Client" + user.getIndex());
+
+                try {
+                    Thread.sleep(1000); // Delay for local test (Synchro)
+                } catch (InterruptedException ex) {
+                    Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
+                }
+
                 user.addMessageToQueue(new MyIndexMsg(this.myIndex));
                 this.nioEngine.registerNioChannel(user, SelectionKey.OP_WRITE);
                 this.activeUsers.set(user.getIndex());// Set active user
@@ -228,6 +234,7 @@ public class Client implements AcceptCallback, ConnectCallback, DeliverCallback,
             case Message.GROUP_MEMBER_MSG:
                 int indexValeu = bytes.getInt();
                 byte[] ipBytes = new byte[4];
+                bytes.get(ipBytes);
                 InetAddress ip = null;
                  {
                     try {
@@ -236,7 +243,6 @@ public class Client implements AcceptCallback, ConnectCallback, DeliverCallback,
                         Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
                     }
                 }
-                bytes.get(ipBytes);
                 int listenigPort = bytes.getInt();
                 RemoteUser user = new RemoteUser(ip, listenigPort, indexValeu);
                 //if (indexValeu != myIndex) {//if it is not me
@@ -258,6 +264,9 @@ public class Client implements AcceptCallback, ConnectCallback, DeliverCallback,
                 RemoteUser u = getUserByIndex(remoteIndexValeu);
                 u.setNioChannel(channel);
                 nioEngine.changeKeyAttach(channel, getUserByIndex(remoteIndexValeu));
+
+                m_listener.joined("Client" + u.getIndex());
+
                 System.out.println("NioChannel for user: " + u.toString() + " set.");
                 this.activeUsers.set(remoteIndexValeu); //New member seted
                 break;
@@ -279,6 +288,30 @@ public class Client implements AcceptCallback, ConnectCallback, DeliverCallback,
                 //TODO:
                 int index = bytes.getInt();
                 System.err.println("Client" + index + " leave chat room.");
+                break;
+
+            case Message.USER_AFTER_FINISH_GROUP:
+                int indexValeu2 = bytes.getInt();
+                if (indexValeu2 != this.myIndex) {
+                    byte[] ipBytes2 = new byte[4];
+                    bytes.get(ipBytes2);
+                    InetAddress ip2 = null;
+                    {
+                        try {
+                            ip2 = InetAddress.getByAddress(ipBytes2);
+                        } catch (UnknownHostException ex) {
+                            Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
+                        }
+                    }
+
+                    int listenigPort2 = bytes.getInt();
+                    RemoteUser user2 = new RemoteUser(ip2, listenigPort2, indexValeu2);
+                    user2.setConnectedCallback(this);
+                    this.group.add(user2);
+                    System.out.println("--new member: " + user2.toString());
+
+                    contactUser(user2);
+                }
                 break;
         }
 
@@ -468,10 +501,10 @@ public class Client implements AcceptCallback, ConnectCallback, DeliverCallback,
             Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
         }
         //m_listener.joined("Client" + this.myIndex);
+        m_listener.joined("Client" + this.myIndex);
         Iterator it = this.group.iterator();
         while (it.hasNext()) {
             RemoteUser user = (RemoteUser) it.next();
-            m_listener.joined("Client" + user.getIndex());
             if (user.getIndex() == myIndex) {
                 it.remove();
             }
@@ -509,9 +542,10 @@ public class Client implements AcceptCallback, ConnectCallback, DeliverCallback,
 
     @Override
     public void leave() throws ChatException {
-        System.out.println("Leave chat Room");
-        m_inRoom = false;
-        leavingChatRoom();
+//        System.out.println("Leave chat Room");
+//        m_inRoom = false;
+//        leavingChatRoom();
+        System.out.println("Not implemented function, use quit button.");
     }
 
     @Override
@@ -537,7 +571,7 @@ public class Client implements AcceptCallback, ConnectCallback, DeliverCallback,
      * messages
      */
     private void produceFakeMessages() {
-    // This thread is to create fake messages...
+        // This thread is to create fake messages...
         // You can comment
         Thread thread = new Thread(new Runnable() {
             public void run() {

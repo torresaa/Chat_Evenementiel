@@ -16,7 +16,7 @@ public class Client2 {
     
     public static void main(String args[]) throws InterruptedException {
         try {
-            Client client2 = new Client(5960, 5970);
+            Client client2 = new Client("Aquiles",5960, 5970);
             /**
              * NioEngine.listen, init NioServer over server
              */

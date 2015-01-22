@@ -10,11 +10,12 @@ import chat.descriptors.Utils;
 /**
  * Msg send from client to server after connection
  * to inform listening port
- * PAYLOAD = ListeningPort (4B)
+ * PAYLOAD = ListeningPort (4B) | name
  */
 public class ListeningPortMsg extends Message{
     
     private int listenigPort = -1;
+    private String name;
     
     public ListeningPortMsg (int port){
         this.setType(Message.LISTENING_PORT_MSG);

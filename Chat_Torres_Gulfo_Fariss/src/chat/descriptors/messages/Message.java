@@ -19,6 +19,7 @@ public abstract class Message {
     public static final int ACK_SERVER = 13;
     public static final int GROUP_MEMBER_MSG = 14;
     public static final int DELIVER_MSG = 15;
+    public static final int USER_AFTER_FINISH_GROUP = 16;
     
     //Msg client-client
     public static final int DATA_MSG = 21;
